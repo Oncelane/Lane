@@ -47,7 +47,8 @@ namespace lane {
         initSock();
         m_isConnected = true;
         getLocalAddress();
-        getRemoteAddress();
+        // 暂时删除
+        // getRemoteAddress();
         return true;
     }
     bool Socket::newSock() {
@@ -293,7 +294,8 @@ namespace lane {
             }
         }
         m_isConnected = true;
-        getRemoteAddress();
+        // 暂时删除
+        // getRemoteAddress();
         getLocalAddress();
         return true;
     }

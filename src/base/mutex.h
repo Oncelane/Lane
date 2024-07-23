@@ -17,10 +17,8 @@
 #include <cassert>
 #include <list>
 #include <memory>
-// #include "base/log.h"
+#include <assert.h>
 #include "base/noncopyable.h"
-// #include "base/fiber.h"
-// #include "base/scheduler.h"
 // #include "base/macro.h"
 namespace lane {
     class IOManager;
@@ -189,6 +187,25 @@ namespace lane {
         std::list<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
         int8_t m_sem;
         Mutex m_mutex;  // 因为需要对std::list进行增删查改，所以必须用互斥锁
+    };
+
+    class FiberMutex : Noncopyable {
+        public:
+        typedef ScopedLockImpl<FiberMutex> Lock;
+
+        FiberMutex(): m_fs(1) {}
+        ~FiberMutex() {
+            assert(m_fs.getSem()==1);
+        }
+        void lock() {
+            m_fs.wait();
+        }
+        void unlock() {
+            assert(m_fs.getSem()==0);
+            m_fs.post();
+        }
+        private:
+        FiberSemaphore m_fs;
     };
 
 }  // namespace lane

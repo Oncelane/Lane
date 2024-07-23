@@ -108,3 +108,5 @@ target_link_libraries(test_mutex  laneLib)
 add_executable(test_AsyncLog tests/test_AsyncLog.cc)
 target_link_libraries(test_AsyncLog  laneLib)
 
+add_executable(test_channel tests/test_channel.cc)
+target_link_libraries(test_channel  laneLib)

@@ -3,9 +3,8 @@
 #include "init/daemon.h"
 
 static lane::Logger::ptr g_logger = LANE_LOG_ROOT();
-
-lane::Timer::ptr timer;
-int server_main(int argc, char** argv) {
+lane::Timer::ptr         timer;
+int                      server_main(int argc, char** argv) {
     LANE_LOG_INFO(g_logger) << lane::ProcessInfoMgr::GetInstance()->toString();
     lane::IOManager iom(1);
     timer = iom.addTimer(
@@ -24,5 +23,10 @@ int server_main(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-    return lane::start_daemon(argc, argv, server_main, argc != 1);
+    lane::LogAppender::ptr fileLog(new lane::FileLogAppender());
+    g_logger->addAppender(fileLog);
+    LANE_LOG_INFO(g_logger) << "start daemon";
+    lane::start_daemon(argc, argv, server_main, argc != 1);
+    LANE_LOG_INFO(g_logger) << "end of main";
+    return 0;
 }
