@@ -12,7 +12,7 @@
 
 #include <assert.h>
 #include <string.h>
-// #include "base/log.h"
+#include "base/log.h"
 #include "base/util.h"
 
 /// 断言宏封装

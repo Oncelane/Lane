@@ -1,8 +1,14 @@
 #include "base/fiber.h"
+#include <ucontext.h>
+#include <boost/context/detail/fcontext.hpp>
+#include <boost/context/fixedsize_stack.hpp>
+#include <cstddef>
 
 #include "base/config.h"
 #include "base/scheduler.h"
 namespace lane {
+
+
     static Logger::ptr g_logger = LANE_LOG_NAME("system");
     static std::atomic<uint32_t> s_fiber_id = {0};
     static std::atomic<uint32_t> s_fiber_count = {0};
@@ -35,16 +41,17 @@ namespace lane {
         m_state = INIT;
 
         m_stackSize = stackSize ? stackSize : g_stack_size->getValue();
-        m_stackPtr = Allocator::Alloc(m_stackSize);
+        m_stackPtr = static_cast<char*>(Allocator::Alloc(m_stackSize));
 
-        LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
-        m_ctx.uc_link = nullptr;
-        m_ctx.uc_stack.ss_sp = m_stackPtr;
-        m_ctx.uc_stack.ss_size = m_stackSize;
+        // LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
+        // m_ctx.uc_link = nullptr;
+        // m_ctx.uc_stack.ss_sp = m_stackPtr;
+        // m_ctx.uc_stack.ss_size = m_stackSize;
 
-        makecontext(&m_ctx, MainFun, 0);
+        // makecontext(&m_ctx, MainFun, 0);
+        m_fctx = boost::context::detail::make_fcontext(m_stackPtr+m_stackSize, m_stackSize, MainFun);
+        LANE_LOG_DEBUG(g_logger) << "Fiber::Fiber(...)id=" << m_id;
 
-        // LANE_LOG_DEBUG(g_logger) << "Fiber::Fiber(...)id=" << m_id;
     }
     Fiber::Fiber() {
         s_fiber_count++;
@@ -52,12 +59,7 @@ namespace lane {
         m_state = INIT;
         m_stackSize = 0;
         m_stackPtr = nullptr;
-
-        LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
-        m_ctx.uc_link = nullptr;
-        m_ctx.uc_stack.ss_sp = m_stackPtr;
-        m_ctx.uc_stack.ss_size = m_stackSize;
-
+        m_fctx = boost::context::detail::make_fcontext(m_stackPtr, m_stackSize, MainFun);
         LANE_LOG_DEBUG(g_logger) << "Fiber::Fiber()id=" << m_id;
     }
     Fiber::~Fiber() {
@@ -82,12 +84,13 @@ namespace lane {
 
         m_state = INIT;
         m_cb = cb;
-        LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
-        m_ctx.uc_link = nullptr;
-        m_ctx.uc_stack.ss_sp = m_stackPtr;
-        m_ctx.uc_stack.ss_size = m_stackSize;
+        // LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
+        // m_ctx.uc_link = nullptr;
+        // m_ctx.uc_stack.ss_sp = m_stackPtr;
+        // m_ctx.uc_stack.ss_size = m_stackSize;
 
-        makecontext(&m_ctx, MainFun, 0);
+        // makecontext(&m_ctx, MainFun, 0);
+        m_fctx = boost::context::detail::make_fcontext(m_stackPtr, m_stackSize, MainFun);
     }
 
     void Fiber::swapIn() {
@@ -96,14 +99,15 @@ namespace lane {
             LANE_ASSERT(t_threadFiber == t_fiber && t_fiber->m_state == EXEC);
             SetThis(shared_from_this());
             t_threadFiber->m_state = HOLD;
-            int rt = 0;
-            if ((rt = swapcontext(&t_threadFiber->m_ctx, &m_ctx))) {
-                LANE_LOG_ERROR(g_logger)
-                    << "Fiber::swapIn: swapcontext(...)error rt = " << rt
-                    << "fiberId = " << m_id;
-                throw std::logic_error("swapcontext error");
-            }
+            boost::context::detail::transfer_t rt;
+            // if ((rt = swapcontext(&t_threadFiber->m_ctx, &m_ctx))) {
+            //     LANE_LOG_ERROR(g_logger)
+            //         << "Fiber::swapIn: swapcontext(...)error rt = " << rt
+            //         << "fiberId = " << m_id;
+            //     throw std::logic_error("swapcontext error");
+            // }
 
+            rt = boost::context::detail::jump_fcontext(m_fctx,0);
             LANE_ASSERT(t_threadFiber == t_fiber && t_fiber->m_state == EXEC);
 
         } else {
@@ -111,15 +115,16 @@ namespace lane {
                         t_fiber->m_state == EXEC);
             SetThis(shared_from_this());
             Scheduler::GetScheRunFiber()->m_state = HOLD;
-            int rt = 0;
+            // int rt = 0;
+            boost::context::detail::transfer_t rt;
             auto raw_ptr = Scheduler::GetScheRunFiber().get();
-            if ((rt = swapcontext(&(raw_ptr->m_ctx), &m_ctx))) {
-                LANE_LOG_ERROR(g_logger)
-                    << "Fiber::swapIn: swapcontext(...)error rt = " << rt
-                    << "fiberId = " << m_id;
-                throw std::logic_error("swapcontext error");
-            }
-
+            // if ((rt = swapcontext(&(raw_ptr->m_ctx), &m_ctx))) {
+            //     LANE_LOG_ERROR(g_logger)
+            //         << "Fiber::swapIn: swapcontext(...)error rt = " << rt
+            //         << "fiberId = " << m_id;
+            //     throw std::logic_error("swapcontext error");
+            // }
+            rt = boost::context::detail::jump_fcontext(raw_ptr->m_fctx, nullptr);
             LANE_ASSERT(Scheduler::GetScheRunFiber() == t_fiber &&
                         t_fiber->m_state == EXEC);
         }
@@ -136,13 +141,15 @@ namespace lane {
                         t_threadFiber->m_state == HOLD &&
                         t_fiber == shared_from_this());
             SetThis(t_threadFiber);
-            int rt = 0;
-            if ((rt = swapcontext(&m_ctx, &t_threadFiber->m_ctx))) {
-                LANE_LOG_ERROR(g_logger)
-                    << "Fiber::swapOut: swapcontext(...)error rt = " << rt
-                    << "fiberId = " << m_id;
-                throw std::logic_error("swapcontext error");
-            }
+            // int rt = 0;
+            // if ((rt = swapcontext(&m_ctx, &t_threadFiber->m_ctx))) {
+            //     LANE_LOG_ERROR(g_logger)
+            //         << "Fiber::swapOut: swapcontext(...)error rt = " << rt
+            //         << "fiberId = " << m_id;
+            //     throw std::logic_error("swapcontext error");
+            // }
+            boost::context::detail::transfer_t rt;
+            rt = boost::context::detail::jump_fcontext(t_threadFiber->m_fctx, 0);
             LANE_ASSERT(t_threadFiber != t_fiber &&
                         t_threadFiber->m_state == HOLD &&
                         t_fiber == shared_from_this());
@@ -151,16 +158,18 @@ namespace lane {
                         Scheduler::GetScheRunFiber()->m_state == HOLD &&
                         t_fiber == shared_from_this());
             SetThis(Scheduler::GetScheRunFiber());
-            int rt = 0;
+            // int rt = 0;
             // raw_ptr这一步不可省略
             // 临时对象在一行执行完才析构
             auto raw_ptr = Scheduler::GetScheRunFiber().get();
-            if ((rt = swapcontext(&m_ctx, &(raw_ptr->m_ctx)))) {
-                LANE_LOG_ERROR(g_logger)
-                    << "Fiber::swapOut: swapcontext(...)error rt = " << rt
-                    << "fiberId = " << m_id;
-                throw std::logic_error("swapcontext error");
-            }
+            // if ((rt = swapcontext(&m_ctx, &(raw_ptr->m_ctx)))) {
+            //     LANE_LOG_ERROR(g_logger)
+            //         << "Fiber::swapOut: swapcontext(...)error rt = " << rt
+            //         << "fiberId = " << m_id;
+            //     throw std::logic_error("swapcontext error");
+            // }
+                        boost::context::detail::transfer_t rt;
+            rt = boost::context::detail::jump_fcontext(raw_ptr->m_fctx, 0);
             LANE_ASSERT(Scheduler::GetScheRunFiber() != t_fiber &&
                         Scheduler::GetScheRunFiber()->m_state == HOLD &&
                         t_fiber == shared_from_this());
@@ -168,7 +177,9 @@ namespace lane {
         LANE_ASSERT(m_state == EXEC);
     }
 
-    void Fiber::MainFun() {
+    void Fiber::MainFun(boost::context::detail::transfer_t in) {
+        // 保存传入的主线程的栈
+        // t_threadFiber->m_fctx = in.fctx;
         auto raw_ptr = GetThis().get();
         LANE_ASSERT(raw_ptr != t_threadFiber.get());
 

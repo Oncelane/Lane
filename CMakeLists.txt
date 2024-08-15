@@ -5,6 +5,7 @@ project(Lane)
 # find_package(yaml-cpp REQUIRED)
 find_library(yaml yaml-cpp)
 find_library(pthread-lib pthread)
+find_package(Boost REQUIRED COMPONENTS context)
 
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
@@ -58,7 +59,7 @@ add_compile_options(-std=c++11 -Wall -g -O0)
 set (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 add_library (laneLib STATIC ${SRC_LIST})
 # set_target_properties (laneLib PROPERTIES OUTPUT_NAME "laneLib")
-target_link_libraries(laneLib yaml-cpp ${LIB_LIST})
+target_link_libraries(laneLib yaml-cpp ${LIB_LIST} Boost::context)
 
 add_executable(test_log tests/test_log.cc)
 target_link_libraries(test_log laneLib)

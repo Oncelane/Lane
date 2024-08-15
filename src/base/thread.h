@@ -17,14 +17,13 @@
 #include <memory>
 #include <string>
 
-#include "base/fiberAndThread.h"
 #include "base/log.h"
 #include "base/mutex.h"
 #include "base/noncopyable.h"
 #include "base/util.h"
 #include "base/workStealQueue.h"
 namespace lane {
-
+    struct FiberAndThread;
     class Thread : Noncopyable {
        public:
         typedef std::shared_ptr<Thread> ptr;

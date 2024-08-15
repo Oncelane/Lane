@@ -11,13 +11,14 @@
 #define __LANE_FIBER_H__
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucontext.h>
 
 #include <atomic>
+#include <boost/context/detail/tuple.hpp>
+#include <boost/context/fiber_fcontext.hpp>
 #include <functional>
 #include <memory>
 
-#include "base/log.h"
+#include <boost/context/detail/fcontext.hpp>
 #include "base/macro.h"
 namespace lane {
     class Fiber : public std::enable_shared_from_this<Fiber> {
@@ -52,7 +53,7 @@ namespace lane {
         void swapOut();
 
        public:
-        static void MainFun();
+        static void MainFun(boost::context::detail::transfer_t in);
         static void YieldToHold();
         static void YieldToReady();
         static Fiber::ptr GetThis();
@@ -63,10 +64,10 @@ namespace lane {
         CallBackType m_cb;
         State m_state;
         uint32_t m_id;
-        ucontext_t m_ctx;
-        uint32_t m_stackSize;
+        boost::context::detail::fcontext_t m_fctx;
+        size_t m_stackSize;
         bool m_withThread;
-        void* m_stackPtr;
+        char* m_stackPtr;
     };
 }  // namespace lane
 
