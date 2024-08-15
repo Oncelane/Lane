@@ -53,7 +53,7 @@ file(GLOB_RECURSE SRC_LIST
 #     src/init/library.cc
 #     src/base/worker.cc)
 message(STATUS "-----SRC_LIST:${SRC_LIST}-----LIB_LIST:${LIB_LIST}---YAML-CPP:${yaml}")
-add_compile_options(-std=c++11 -Wall -g -o0)
+add_compile_options(-std=c++11 -Wall -g -O0)
 
 set (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 add_library (laneLib STATIC ${SRC_LIST})

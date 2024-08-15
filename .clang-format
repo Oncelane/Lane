@@ -11,7 +11,7 @@ IndentWidth: 4
 IndentCaseLabels: true
 
 # 访问说明符(public、private等)的偏移
-# AccessModifierOffset: -4
+AccessModifierOffset: -4
 
 # 每行字符的限制，0表示没有限制
 ColumnLimit: 80
