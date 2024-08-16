@@ -11,3 +11,5 @@ web/
 .cache/
 
 *.a
+
+draw/
