@@ -1,62 +1,203 @@
+#include <algorithm>
 #include <boost/context/detail/fcontext.hpp>
+#include <cassert>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <utility>
+#include <vector>
 
-class Fiber {
-public:
-    using fcontext_t = boost::context::detail::fcontext_t;
-    using transfer_t = boost::context::detail::transfer_t;
+#include "base/fiber.h"
+#include "base/log.h"
+#include "base/scheduler.h"
 
-    Fiber(void (*func)(transfer_t)) {
-        // 创建堆栈
-        stack = new char[stack_size];
-        // 创建上下文
-        fctx = boost::context::detail::make_fcontext(
-            stack + stack_size, stack_size, func);
-    }
+using namespace boost::context::detail;
+// class fFiber;
+// static thread_local fFiber* t_curFiber;
+// static thread_local fFiber* t_threadFiber;
+// class fFiber : public std::enable_shared_from_this<fFiber> {
+// private:
+// public:
+//     using ptr = fFiber*;
+//     using callBack = std::function<void(void)>;
 
-    ~Fiber() {
-        delete[] stack;  // 释放堆栈内存
-    }
+//     fFiber() {
+//         //空的，只是用来放main fiber
+//     }
 
-    void swap_in() {
-        // 从主线程跳转到协程
-        // 这里传递当前 Fiber 的指针，以便后续在 fiber_function 中使用
-        transfer_t tr = boost::context::detail::jump_fcontext(fctx, this);
-        // 在协程中返回时，这里会继续执行
-        std::cout << "Returned from fiber." << std::endl;
-    }
+//     fFiber(callBack _cb) : m_cb(_cb), m_stackSize(1024 * 4) {
+//         //分配内存
+//         m_stack = (char*)malloc(m_stackSize);
+//         m_fctx = boost::context::detail::make_fcontext(
+//             m_stack + m_stackSize, m_stackSize, MainFunc);
+//     }
+//     ~fFiber() {
+//         if (m_stack) {
+//             free(m_stack);
+//         }
+//         if (t_curFiber == this) {
+//             t_curFiber = nullptr;
+//         }
+//     }
 
-    void swap_out() {
-        // 从协程跳转到主线程
-        // 可以传递数据回主线程，设置为为 nullptr 表示无数据
-        transfer_t tr = {fctx, this};
-        boost::context::detail::jump_fcontext(tr.fctx, tr.data);
-    }
+//     void swapIn() {
+//         t_curFiber = this;
+//         assert(fFiber::GetThis() != t_curFiber);
+//         boost::context::detail::jump_fcontext(m_fctx, this);
+//     }
 
-private:
-    static const std::size_t stack_size = 32768;  // 协程的栈大小
-    char*                    stack;               // 存储协程的栈
-    fcontext_t               fctx;                // 协程上下文
-};
+//     void swapOut() {
+//         jump_fcontext(t_threadFiber->m_fctx, nullptr);
+//     }
 
-void fiber_function(boost::context::detail::transfer_t tr) {
-    std::cout << "Fiber is running." << std::endl;
+//     static void MainFunc(transfer_t in) {
+//         t_threadFiber->m_fctx = in.fctx;
+//         fFiber* readyFiber = reinterpret_cast<fFiber*>(in.data);
+//         readyFiber->m_cb();
+//         readyFiber->swapOut();
+//     }
 
-    // 通过 `tr.data` 获取 Fiber 实例
-    Fiber* fiber = static_cast<Fiber*>(tr.data);
+//     static fFiber::ptr GetThis() {
+//         if (t_threadFiber == nullptr) {
+//             t_threadFiber = new fFiber();
+//         }
+//         return t_threadFiber;
+//     }
 
-    // 在这里可以实现一些协程的逻辑...
+//     static void SetThis(fFiber::ptr in) {
+//         t_curFiber = in;
+//     }
 
-    std::cout << "Fiber is about to swap out." << std::endl;
+//     void*            private_data;
+//     fcontext_t       m_fctx;
+//     fFiber::callBack m_cb;
+//     char*            m_stack;
+//     size_t           m_stackSize;
+// };
 
-    // 现在可以安全地调用 swap_out
-    fiber->swap_out();
+void testFiber() {
+    lane::Fiber::GetThis();
+    auto f1 = lane::Fiber::ptr(new lane::Fiber(
+        []() {
+            printf("enter f1\n");
+            printf("end f1\n");
+        },
+        true));
+
+    auto f2 = lane::Fiber::ptr(new lane::Fiber(
+        []() {
+            printf("enter f2\n");
+            printf("end f2\n");
+        },
+        true));
+
+    printf("main -> f1\n");
+    f1->swapIn();
+    printf("f1 -> main\n");
+
+    printf("main -> f2\n");
+    f2->swapIn();
+    printf("f2 -> main\n");
+
+    printf("main exit\n");
 }
 
-int main() {
-    Fiber fiber(fiber_function);
-    fiber.swap_in();  // 从主线程切换到协程执行
-    std::cout << "Back to main thread." << std::endl;
+uint count = 0;
+uint b = 1000000;
 
-    return 0;
+void benchmark_fcontext() {
+    lane::Fiber::GetThis();
+    auto cb = []() { count++; };
+    auto f = lane::Fiber::ptr(new lane::Fiber(cb, true));
+    for (uint i = 0; i < b; ++i) {
+        f->swapIn();
+        f->reset(cb);
+    }
+}
+
+void benchmark_simply() {
+    using namespace std::chrono;
+    b = 1000000;
+    std::cout << "swap count: " << b << std::endl;
+    // 测试 benchmark_fcontext
+    auto start = high_resolution_clock::now();
+    benchmark_fcontext();
+    auto end = high_resolution_clock::now();
+    auto duration_fcontext = duration_cast<milliseconds>(end - start).count();
+    std::cout << "benchmark_fcontext: " << duration_fcontext << " ms"
+              << std::endl;
+}
+int  result;
+void content() {
+    for (int i = 0; i < 500; ++i) {
+        // 一些计算操作，例如乘法
+        result = i * i;
+        lane::Fiber::YieldToReady();
+    }
+}
+void fiberGenerator() {
+    for (int i = 0; i < 10000; ++i) {
+        lane::Scheduler::GetThis()->addTask(std::bind(&content));
+    }
+}
+
+void bunchOfTask() {
+    std::cout << "test begin" << std::endl;
+    lane::Scheduler sch(2, "test_speed");
+    sch.addTask(fiberGenerator);
+    sch.start();
+    sch.stop();
+    std::cout << "test end" << std::endl;
+}
+
+void benchtasks(int count) {
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < count; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+        bunchOfTask();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "Test " << i << " spend " << elapsed.count() << "s"
+                  << std::endl;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Test Average"
+              << " spend " << elapsed.count() / count << "s" << std::endl;
+}
+
+
+void benchmakr_scheduler() {
+    benchtasks(1);
+
+    std::cout << "make sure task finish : 计算结果=" << result << std::endl;
+}
+
+
+void testFiberSwapOut() {
+    lane::Fiber::GetThis();
+    auto f1 = lane::Fiber::ptr(new lane::Fiber(
+        []() {
+            printf("enter f1\n");
+            printf("swap out\n");
+            lane::Fiber::YieldToReady();
+            printf("swap in\n");
+            printf("end f1\n");
+        },
+        true));
+
+
+    printf("main -> f1\n");
+    f1->swapIn();
+    printf("f1 -> main\n");
+    printf("main->f1\n");
+    f1->swapIn();
+    printf("f1->main\n");
+    printf("main exit\n");
+}
+int main() {
+    benchmakr_scheduler();
 }
