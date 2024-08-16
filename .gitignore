@@ -13,3 +13,5 @@ web/
 draw/
 
 doc/
+
+*.a

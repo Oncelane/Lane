@@ -110,3 +110,7 @@ target_link_libraries(test_AsyncLog  laneLib)
 
 add_executable(test_channel tests/test_channel.cc)
 target_link_libraries(test_channel  laneLib)
+
+add_executable(test_fcontext tests/test_fcontext.cc)
+target_link_libraries(test_fcontext  laneLib)
+
