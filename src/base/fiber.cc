@@ -84,10 +84,8 @@ void Fiber::reset(CallBackType cb) {
     m_state = INIT;
     m_cb = cb;
 
-    //完成主线程的保存
-    t_fiber = shared_from_this();
-
-    boost::context::detail::jump_fcontext(m_ctx, this);
+    m_ctx = boost::context::detail::make_fcontext(
+        m_stackPtr + m_stackSize, m_stackSize, MainFun);
 }
 
 void Fiber::swapIn() {
@@ -96,7 +94,8 @@ void Fiber::swapIn() {
         LANE_ASSERT(t_threadFiber == t_fiber && t_fiber->m_state == EXEC);
         SetThis(shared_from_this());
         t_threadFiber->m_state = HOLD;
-        boost::context::detail::jump_fcontext(m_ctx, this);
+        auto rt = boost::context::detail::jump_fcontext(m_ctx, this);
+        m_ctx = rt.fctx;
         LANE_ASSERT(t_threadFiber == t_fiber && t_fiber->m_state == EXEC);
 
     } else {
@@ -104,9 +103,8 @@ void Fiber::swapIn() {
                     t_fiber->m_state == EXEC);
         SetThis(shared_from_this());
         Scheduler::GetScheRunFiber()->m_state = HOLD;
-        std::cout << " m_state == HOLD 2:"
-                  << Scheduler::GetScheRunFiber()->m_state << std::endl;
-        boost::context::detail::jump_fcontext(m_ctx, this);
+        auto rt = boost::context::detail::jump_fcontext(m_ctx, this);
+        m_ctx = rt.fctx;
         LANE_ASSERT(Scheduler::GetScheRunFiber() == t_fiber &&
                     t_fiber->m_state == EXEC);
     }
@@ -117,8 +115,6 @@ void Fiber::swapIn() {
 void Fiber::swapOut() {
     // m_state == HOLD || m_state == READY || m_state == TERM || m_state ==
     // EXCE
-    std::cout << " m_state == HOLD 2?:" << Scheduler::GetScheRunFiber()->m_state
-              << std::endl;
     LANE_ASSERT(m_state != EXEC && m_state != INIT);
     if (m_withThread) {
         LANE_ASSERT(t_threadFiber != t_fiber &&
