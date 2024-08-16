@@ -1,62 +1,118 @@
+#include <algorithm>
 #include <boost/context/detail/fcontext.hpp>
+#include <cassert>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <utility>
+#include <vector>
 
-class Fiber {
-public:
-    using fcontext_t = boost::context::detail::fcontext_t;
-    using transfer_t = boost::context::detail::transfer_t;
+#include "base/fiber.h"
 
-    Fiber(void (*func)(transfer_t)) {
-        // 创建堆栈
-        stack = new char[stack_size];
-        // 创建上下文
-        fctx = boost::context::detail::make_fcontext(
-            stack + stack_size, stack_size, func);
-    }
-
-    ~Fiber() {
-        delete[] stack;  // 释放堆栈内存
-    }
-
-    void swap_in() {
-        // 从主线程跳转到协程
-        // 这里传递当前 Fiber 的指针，以便后续在 fiber_function 中使用
-        transfer_t tr = boost::context::detail::jump_fcontext(fctx, this);
-        // 在协程中返回时，这里会继续执行
-        std::cout << "Returned from fiber." << std::endl;
-    }
-
-    void swap_out() {
-        // 从协程跳转到主线程
-        // 可以传递数据回主线程，设置为为 nullptr 表示无数据
-        transfer_t tr = {fctx, this};
-        boost::context::detail::jump_fcontext(tr.fctx, tr.data);
-    }
-
+using namespace boost::context::detail;
+class fFiber;
+static thread_local fFiber* t_curFiber;
+static thread_local fFiber* t_threadFiber;
+class fFiber : public std::enable_shared_from_this<fFiber> {
 private:
-    static const std::size_t stack_size = 32768;  // 协程的栈大小
-    char*                    stack;               // 存储协程的栈
-    fcontext_t               fctx;                // 协程上下文
+public:
+    using ptr = fFiber*;
+    using callBack = std::function<void(void)>;
+
+    fFiber() {
+        //空的，只是用来放main fiber
+    }
+
+    fFiber(callBack _cb) : m_cb(_cb), m_stackSize(1024 * 4) {
+        //分配内存
+        m_stack = (char*)malloc(m_stackSize);
+        m_fctx = boost::context::detail::make_fcontext(
+            m_stack + m_stackSize, m_stackSize, MainFunc);
+    }
+
+    void swapIn() {
+        t_curFiber = this;
+        assert(fFiber::GetThis() != t_curFiber);
+        boost::context::detail::jump_fcontext(m_fctx, this);
+    }
+
+    void swapOut() {
+        jump_fcontext(t_threadFiber->m_fctx, nullptr);
+    }
+
+    static void MainFunc(transfer_t in) {
+        t_threadFiber->m_fctx = in.fctx;
+        fFiber* readyFiber = reinterpret_cast<fFiber*>(in.data);
+        readyFiber->m_cb();
+        readyFiber->swapOut();
+    }
+
+    static fFiber::ptr GetThis() {
+        if (t_threadFiber == nullptr) {
+            t_threadFiber = new fFiber();
+        }
+        return t_threadFiber;
+    }
+
+    static void SetThis(fFiber::ptr in) {
+        t_curFiber = in;
+    }
+
+    void*            private_data;
+    fcontext_t       m_fctx;
+    fFiber::callBack m_cb;
+    char*            m_stack;
+    size_t           m_stackSize;
 };
 
-void fiber_function(boost::context::detail::transfer_t tr) {
-    std::cout << "Fiber is running." << std::endl;
+void testFiber() {
+    auto f1 = fFiber([]() {
+        printf("enter f1\n");
+        printf("end f1\n");
+    });
 
-    // 通过 `tr.data` 获取 Fiber 实例
-    Fiber* fiber = static_cast<Fiber*>(tr.data);
+    auto f2 = fFiber([]() {
+        printf("enter f2\n");
+        printf("end f2\n");
+    });
 
-    // 在这里可以实现一些协程的逻辑...
+    printf("main -> f1\n");
+    f1.swapIn();
+    printf("f1 -> main\n");
 
-    std::cout << "Fiber is about to swap out." << std::endl;
+    printf("main -> f2\n");
+    f2.swapIn();
+    printf("f2 -> main\n");
 
-    // 现在可以安全地调用 swap_out
-    fiber->swap_out();
+    printf("main exit\n");
+}
+
+uint count = 0;
+
+void benchmark_fcontext() {
+
+    for (int i = 0; i < 1000000; ++i) {
+        fFiber([]() { count++; }).swapIn();
+    }
+}
+
+void benchmark_ucontext() {
+    for (int i = 0; i < 10; ++i) {
+        lane::Fiber(
+            []() {
+                printf("%d \n", count);
+                count++;
+            },
+            true,
+            1024 * 4)
+            .swapIn();
+    }
 }
 
 int main() {
-    Fiber fiber(fiber_function);
-    fiber.swap_in();  // 从主线程切换到协程执行
-    std::cout << "Back to main thread." << std::endl;
-
-    return 0;
+    // benchmark_fcontext();
+    benchmark_ucontext();
 }

@@ -9,3 +9,5 @@ bin/
 web/
 
 .cache/
+
+*.a
