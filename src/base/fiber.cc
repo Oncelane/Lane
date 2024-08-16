@@ -36,8 +36,8 @@ Fiber::Fiber(CallBackType cb, bool withThread, uint32_t stackSize)
 
     m_stackSize = stackSize ? stackSize : g_stack_size->getValue();
     m_stackPtr = Allocator::Alloc(m_stackSize);
-
-    LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
+    int rt = getcontext(&m_ctx) == 0;
+    LANE_ASSERT2(rt, "getcontext(...)");
     m_ctx.uc_link = nullptr;
     m_ctx.uc_stack.ss_sp = m_stackPtr;
     m_ctx.uc_stack.ss_size = m_stackSize;
@@ -52,8 +52,8 @@ Fiber::Fiber() {
     m_state = INIT;
     m_stackSize = 0;
     m_stackPtr = nullptr;
-
-    LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
+    int rt = getcontext(&m_ctx) == 0;
+    LANE_ASSERT2(rt, "getcontext(...)");
     m_ctx.uc_link = nullptr;
     m_ctx.uc_stack.ss_sp = m_stackPtr;
     m_ctx.uc_stack.ss_size = m_stackSize;
@@ -82,7 +82,8 @@ void Fiber::reset(CallBackType cb) {
 
     m_state = INIT;
     m_cb = cb;
-    LANE_ASSERT2(getcontext(&m_ctx) == 0, "getcontext(...)");
+    int rt = getcontext(&m_ctx) == 0;
+    LANE_ASSERT2(rt, "getcontext(...)");
     m_ctx.uc_link = nullptr;
     m_ctx.uc_stack.ss_sp = m_stackPtr;
     m_ctx.uc_stack.ss_size = m_stackSize;
