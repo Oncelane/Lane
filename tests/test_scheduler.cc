@@ -5,15 +5,15 @@
 #include "base/hook.h"
 #include "base/scheduler.h"
 lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
-void fun() {
-    lane::set_hook_enable(false);
-    static int count = 0;
-    LANE_LOG_DEBUG(g_logger) << "fun:" << count;
-    if (count < 5) {
-        lane::Scheduler::GetThis()->schedule(fun);
-        count++;
+void              fun() {
+                 lane::set_hook_enable(false);
+                 static int count = 0;
+                 LANE_LOG_DEBUG(g_logger) << "fun:" << count;
+                 if (count < 5) {
+                     lane::Scheduler::GetThis()->schedule(fun);
+                     count++;
     }
-    sleep(1);
+                 sleep(1);
 }
 void fun2() {
     lane::set_hook_enable(false);
@@ -67,7 +67,7 @@ void test3() {
 
 void fun4() {
     lane::set_hook_enable(false);
-    static int count = 0;
+    static int  count = 0;
     static bool flag = false;
     if (flag == 0) {
         flag = true;
@@ -91,11 +91,11 @@ void test4() {
 
 // 每个协程一百万次调度
 static int count = 0;
-void test_fiber_yield() {
-    for (int i = 0; i < 1000000; ++i) {
-        count++;
-        lane::Fiber::YieldToReady();
-        count--;
+void       test_fiber_yield() {
+          for (int i = 0; i < 1000000; ++i) {
+              count++;
+              lane::Fiber::YieldToReady();
+              count--;
     }
 }
 
@@ -173,5 +173,5 @@ int main() {
     g_logger->setLevel(lane::LogLevel::INFO);
     // test1();
     // test2();
-    many_test6();
+    many_test5();
 }
