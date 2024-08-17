@@ -1,5 +1,7 @@
 #include "base/scheduler.h"
 
+#include <cstddef>
+
 #include "base/hook.h"
 namespace lane {
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
@@ -220,7 +222,7 @@ void Scheduler::run() {
             }
         }
     }
-
+    Thread::DeleteLocalQueue();
     t_scheduler = nullptr;
     set_hook_enable(false);
 }
@@ -235,7 +237,6 @@ bool Scheduler::isStoped() {
 void Scheduler::idle() {
     while (!isStoped()) {
         // LANE_LOG_INFO(g_logger) << "idle";
-
         Fiber::YieldToHold();  // idle协程对象会因为智能指针计数归零而自动析构
     }
 }

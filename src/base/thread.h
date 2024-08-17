@@ -23,57 +23,58 @@
 #include "base/util.h"
 #include "base/workStealQueue.h"
 namespace lane {
-    struct FiberAndThread;
-    class Thread : Noncopyable {
-       public:
-        typedef std::shared_ptr<Thread> ptr;
-        typedef std::unique_ptr<Thread> unique_ptr;
-        typedef std::function<void(void)> CallBackType;
+struct FiberAndThread;
+class Thread : Noncopyable {
+public:
+    typedef std::shared_ptr<Thread>   ptr;
+    typedef std::unique_ptr<Thread>   unique_ptr;
+    typedef std::function<void(void)> CallBackType;
 
-       public:
-        Thread(const CallBackType& cb, const std::string& name = "");
-        ~Thread();
+public:
+    Thread(const CallBackType& cb, const std::string& name = "");
+    ~Thread();
 
-       public:
-        static const std::string& GetName();
+public:
+    static const std::string& GetName();
 
-        static pid_t GetTid();
+    static pid_t GetTid();
 
-       public:
-        void join();
+public:
+    void join();
 
-        const std::string& getName();
-        pid_t getTid() const {
-            return m_id;
-        }
-        pthread_t getpthreadTid() const {
-            return m_pthread;
-        }
+    const std::string& getName();
+    pid_t              getTid() const {
+        return m_id;
+    }
+    pthread_t getpthreadTid() const {
+        return m_pthread;
+    }
 
-        static void InitLocalQueue();
-        static lane::WorkStealQueue<FiberAndThread>* GetLocalQueue();
+    static void                                  InitLocalQueue();
+    static lane::WorkStealQueue<FiberAndThread>* GetLocalQueue();
+    static void                                  DeleteLocalQueue();
 
-       private:
-        void setDefaultName();
+private:
+    void setDefaultName();
 
-       private:
-        static void* Main(void* arg);
+private:
+    static void* Main(void* arg);
 
-       private:
-        // 真实线程（进程）id
-        pid_t m_id;
-        // Posix定义的id
-        pthread_t m_pthread;
-        // 线程名
-        std::string m_name;
-        // 线程回调函数
-        CallBackType m_cb;
-        Semaphore m_sem;
-        // 线程本地队列
-        lane::WorkStealQueue<FiberAndThread>* m_queue;
+private:
+    // 真实线程（进程）id
+    pid_t m_id;
+    // Posix定义的id
+    pthread_t m_pthread;
+    // 线程名
+    std::string m_name;
+    // 线程回调函数
+    CallBackType m_cb;
+    Semaphore    m_sem;
+    // 线程本地队列
+    lane::WorkStealQueue<FiberAndThread>* m_queue;
 
-        static std::atomic<int32_t> ThreadCount;
-    };
+    static std::atomic<int32_t> ThreadCount;
+};
 }  // namespace lane
 
 #endif

@@ -35,7 +35,8 @@ void releaseSignl() {
     }
 }
 
-int main() {
+
+void test_channel() {
     lane::IOManager iom(1, "test", true);
     iom.addTask(waitSignl);
     iom.addTask(waitSignl);
@@ -43,5 +44,10 @@ int main() {
     iom.addTask(releaseSignl);
     iom.start();
     iom.stop();
+}
+int main() {
+    char *buffer = (char *)malloc(1024);
+    buffer[9] = (char)255;
+    printf("buffer9=%d", buffer[9]);
     return 0;
 }

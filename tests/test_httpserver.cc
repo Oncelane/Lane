@@ -1,10 +1,15 @@
+#include <signal.h>
+
+#include <memory>
+
 #include "base/log.h"
+#include "base/mutex.h"
 #include "http/httpserver.h"
 #include "http/servlet.h"
+#include "net/tcpserver.h"
 static lane::Logger::ptr g_logger = LANE_LOG_ROOT();
 
 #define XX(...) #__VA_ARGS__
-
 lane::IOManager::ptr worker;
 void                 run() {
     g_logger->setLevel(lane::LogLevel::INFO);
@@ -43,16 +48,22 @@ void                 run() {
                             / center > </ body></ html>));
             return 0;
         });
-
     server->start();
+    lane::IOManager::GetThis()->addTimer(
+        1000 * 60, [server]() { server->stop(); }, false);
 }
 
+
 int main(int argc, char** argv) {
+    // 注册信号处理函数
+
     printf("test\n");
-    lane::IOManager iom(4, "main", false);
-    // worker.reset(new lane::IOManager(3,  "worker", false));
+    // worker.reset(new lane::IOManager(3, "worker", false));
+    lane::IOManager iom(12, "main", false);
     iom.start();
     iom.addTask(run);
-    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::INFO);
+    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::FATAL);
+    iom.stop();
+    printf("server end\n");
     return 0;
 }
