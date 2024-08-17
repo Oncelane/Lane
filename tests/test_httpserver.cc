@@ -49,7 +49,7 @@ void                 run() {
 
 int main(int argc, char** argv) {
     printf("test\n");
-    lane::IOManager iom(4, "main", false);
+    lane::IOManager iom(12, "main", false);
     // worker.reset(new lane::IOManager(3,  "worker", false));
     iom.start();
     iom.addTask(run);
