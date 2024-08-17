@@ -8,8 +8,8 @@
 #include "base/log.h"
 
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
-void test() {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+void                     test() {
+    int         sockfd = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in addr;
 
     fcntl(sockfd, F_SETFL, O_NONBLOCK);
@@ -38,11 +38,7 @@ void test_timer() {
     lane::IOManager iom(2, "tm");
 
     iom.addTimer(
-        1000,
-        []() {
-            LANE_LOG_DEBUG(g_logger) << "timer...";
-        },
-        true);
+        1000, []() { LANE_LOG_DEBUG(g_logger) << "timer..."; }, true);
 }
 
 int main() {
