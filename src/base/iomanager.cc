@@ -1,6 +1,8 @@
 #include "base/iomanager.h"
 
+#include "base/log.h"
 #include "base/macro.h"
+#include "base/timer.h"
 namespace lane {
 
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
@@ -134,11 +136,12 @@ int IOManager::addEvent(int fd, Event event, std::function<void(void)> cb) {
     if (rt) {
         LANE_LOG_ERROR(g_logger)
             << "epoll_ctl(" << m_epollfd << ", " << op << ", " << fd << ", "
-            << epevent.events << "):" << "<errno[" << errno
-            << "]:" << strerror(errno) << ">";
+            << epevent.events << "):"
+            << "<errno[" << errno << "]:" << strerror(errno) << ">";
 
         return -1;
     }
+    LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount++";
     m_penddingEventCount++;
     fdctx->m_events = (Event)(fdctx->m_events | event);
     FdContext::EventContext &ectx = fdctx->getEventContext(event);
@@ -181,11 +184,12 @@ int IOManager::delEvent(int fd, Event event) {
     if (rt) {
         LANE_LOG_ERROR(g_logger)
             << "epoll_ctl(" << m_epollfd << ", " << op << ", " << fd << ", "
-            << epevent.events << "):" << "<errno[" << errno
-            << "]:" << strerror(errno) << ">";
+            << epevent.events << "):"
+            << "<errno[" << errno << "]:" << strerror(errno) << ">";
 
         return -1;
     }
+    LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
     m_penddingEventCount--;
     fdctx->m_events = leftEvent;
     fdctx->resetEventContext(event);
@@ -216,12 +220,13 @@ int IOManager::cancelEvent(int fd, Event event) {
     if (rt) {
         LANE_LOG_ERROR(g_logger)
             << "epoll_ctl(" << m_epollfd << ", " << op << ", " << fd << ", "
-            << epevent.events << "):" << "<errno[" << errno
-            << "]:" << strerror(errno) << ">";
+            << epevent.events << "):"
+            << "<errno[" << errno << "]:" << strerror(errno) << ">";
 
         return -1;
     }
     fdctx->TrigleEvent(event);
+    LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
     m_penddingEventCount--;
     return 0;
 }
@@ -250,22 +255,35 @@ int IOManager::cancelAll(int fd) {
     if (rt) {
         LANE_LOG_ERROR(g_logger)
             << "epoll_ctl(" << m_epollfd << ", " << op << ", " << fd << ", "
-            << epevent.events << "):" << "<errno[" << errno
-            << "]:" << strerror(errno) << ">";
+            << epevent.events << "):"
+            << "<errno[" << errno << "]:" << strerror(errno) << ">";
 
         return -1;
     }
     if (hasEvent & READ) {
         fdctx->TrigleEvent(READ);
+        LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
         m_penddingEventCount--;
     }
 
     if (hasEvent & WRITE) {
         fdctx->TrigleEvent(WRITE);
+        LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
         m_penddingEventCount--;
     }
     LANE_ASSERT(fdctx->m_events == NONE);
     return 0;
+}
+
+int IOManager::getfdEvent(int fd) {
+    MutexType::ReadLock rdlock(m_mutex);
+    if ((int)m_fdContexts.size() <= fd) {
+        // fd过大
+        return -1;
+    }
+    FdContext *fdctx = m_fdContexts[fd];
+    rdlock.unlock();
+    return fdctx->m_events;
 }
 
 bool IOManager::isStoped() {
@@ -274,9 +292,11 @@ bool IOManager::isStoped() {
 }
 
 static const uint32_t MAXFD = 256;
-static uint64_t       MAX_TIMEOUT = 3000;
-void                  IOManager::idle() {
-    epoll_event                 *epevents = new epoll_event[MAXFD]();
+
+static uint64_t MAX_TIMEOUT = 3000;
+
+void IOManager::idle() {
+    epoll_event *                epevents = new epoll_event[MAXFD]();
     std::shared_ptr<epoll_event> shared_event(
         epevents, [](epoll_event *ptr) { delete[] ptr; });
     while (!isStoped()) {
@@ -340,18 +360,20 @@ void                  IOManager::idle() {
                 // 修改m_epollfd set失败，下次还会触发，所以continue就好了
                 LANE_LOG_ERROR(g_logger)
                     << "epoll_ctl(" << m_epollfd << ", " << op << ", " << fd
-                    << ", " << epe.events << "):" << "<errno[" << errno
-                    << "]:" << strerror(errno) << ">";
+                    << ", " << epe.events << "):"
+                    << "<errno[" << errno << "]:" << strerror(errno) << ">";
                 continue;
             }
 
             if (triEvent & READ) {
                 fdctx->TrigleEvent(READ);
+                LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
                 m_penddingEventCount--;
             }
 
             if (triEvent & WRITE) {
                 fdctx->TrigleEvent(WRITE);
+                LANE_LOG_DEBUG(g_logger) << "m_penddingEventCount--";
                 m_penddingEventCount--;
             }
             // for debug 确保m_penddingEventCount符合预期。
