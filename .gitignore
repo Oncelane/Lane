@@ -13,3 +13,5 @@ web/
 *.a
 
 draw/
+
+*lib/
