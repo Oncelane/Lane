@@ -199,5 +199,5 @@ void testFiberSwapOut() {
     printf("main exit\n");
 }
 int main() {
-    benchmark_simply();
+    benchmakr_scheduler();
 }

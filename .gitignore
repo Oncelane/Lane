@@ -15,4 +15,5 @@ draw/
 doc/
 
 *.a
-lib/liblaneLib.a
+
+lib/

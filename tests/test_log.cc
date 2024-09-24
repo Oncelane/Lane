@@ -1,6 +1,7 @@
 #include "base/config.h"
 #include "base/log.h"
 #include "base/thread.h"
+#include "base/macro.h"
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
 void test_lock() {
     lane::ConfigVarMgr::GetInstance()->loadFromFile("log.yml");

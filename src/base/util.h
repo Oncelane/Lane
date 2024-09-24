@@ -23,10 +23,11 @@
 #include <boost/lexical_cast.hpp>
 #include <string>
 #include <vector>
+#include "base/mutex.h"
 
-#include "base/fiber.h"
-#include "base/log.h"
+
 namespace lane {
+    class Fiber;
     pid_t GetThreadId();
 
     uint32_t GetFiberId();

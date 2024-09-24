@@ -3,6 +3,7 @@
 #include <assert.h>
 
 #include "base/config.h"
+#include "base/macro.h"
 namespace lane {
 static Logger::ptr g_logger = LANE_LOG_ROOT();
 

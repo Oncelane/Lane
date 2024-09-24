@@ -14,6 +14,7 @@
 #include <ucontext.h>
 
 #include <atomic>
+#include <boost/context/detail/fcontext.hpp>
 #include <functional>
 #include <memory>
 
@@ -45,7 +46,7 @@ private:
     void swapOut();
 
 public:
-    static void       MainFun();
+    static void       MainFun(boost::context::detail::transfer_t);
     static void       YieldToHold();
     static void       YieldToReady();
     static Fiber::ptr GetThis();
@@ -53,13 +54,13 @@ public:
     static uint32_t   GetFiberId();
 
 private:
-    CallBackType m_cb;
-    State        m_state;
-    uint32_t     m_id;
-    ucontext_t   m_ctx;
-    uint32_t     m_stackSize;
-    bool         m_withThread;
-    void*        m_stackPtr;
+    CallBackType                       m_cb;
+    State                              m_state;
+    uint32_t                           m_id;
+    boost::context::detail::fcontext_t m_ctx;
+    uint32_t                           m_stackSize;
+    bool                               m_withThread;
+    char*                              m_stackPtr;
 };
 }  // namespace lane
 

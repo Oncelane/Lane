@@ -18,6 +18,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "base/fiber.h"
@@ -26,67 +27,64 @@
 #include "base/timer.h"
 namespace lane {
 
-    class IOManager : public Scheduler, public TimerManager {
-       public:
-        typedef RWMutex MutexType;
-        typedef std::shared_ptr<IOManager> ptr;
-        enum Event {
-            NONE = 0,
-            READ = EPOLLIN,
-            WRITE = EPOLLOUT
+class IOManager : public Scheduler, public TimerManager {
+public:
+    typedef RWMutex                    MutexType;
+    typedef std::shared_ptr<IOManager> ptr;
+    enum Event { NONE = 0, READ = EPOLLIN, WRITE = EPOLLOUT };
+    struct FdContext {
+        typedef Mutex MutexType;
+        struct EventContext {
+            void                      reset();
+            Fiber::ptr                m_fiber = nullptr;
+            std::function<void(void)> m_cb = nullptr;
+            // 记录协程调度器，表示，当事件发生，fiber or
+            // callback应该使用哪个协程调度器调度。
+            Scheduler* m_scheduler = nullptr;
         };
-        struct FdContext {
-            typedef Mutex MutexType;
-            struct EventContext {
-                void reset();
-                Fiber::ptr m_fiber = nullptr;
-                std::function<void(void)> m_cb = nullptr;
-                // 记录协程调度器，表示，当事件发生，fiber or
-                // callback应该使用哪个协程调度器调度。
-                Scheduler* m_scheduler = nullptr;
-            };
-            // nolock
-            void TrigleEvent(Event event);
-            EventContext& getEventContext(Event event);
-            void resetEventContext(Event event);
-            EventContext read;      // 读事件Handle
-            EventContext write;     // 写事件Handle
-            Event m_events = NONE;  // 记录当前FdContext哪些事件有效
-            int m_fd = -1;
-            MutexType m_mutex;
-        };
-
-       public:
-        IOManager(uint32_t threadCount = 1,
-                  const std::string& name = "",
-                  bool useCur = true);
-        virtual ~IOManager() override;
-
-       public:
-        void resize(size_t size);
-        int addEvent(int fd,
-                     Event event,
-                     std::function<void(void)> cb = nullptr);
-        int delEvent(int fd, Event event);
-        int cancelEvent(int fd, Event event);
-        int cancelAll(int fd);
-
-       public:
-        virtual bool isStoped() override;
-        virtual void idle() override;
-        virtual void tickle() override;
-        virtual void onTimerInsertedFront() override;
-
-       public:
-        static IOManager* GetThis();
-
-       private:
-        std::vector<FdContext*> m_fdContexts;
-        std::atomic<uint32_t> m_penddingEventCount = {0};
-        int m_pipfd[2];
-        int m_epollfd;
+        // nolock
+        void          TrigleEvent(Event event);
+        EventContext& getEventContext(Event event);
+        void          resetEventContext(Event event);
+        EventContext  read;         // 读事件Handle
+        EventContext  write;        // 写事件Handle
+        Event     m_events = NONE;  // 记录当前FdContext哪些事件有效
+        int       m_fd = -1;
         MutexType m_mutex;
     };
+
+public:
+    IOManager(uint32_t           threadCount = 1,
+              const std::string& name = "",
+              bool               useCur = true);
+    virtual ~IOManager() override;
+
+public:
+    void resize(size_t size);
+    int  addEvent(int fd, Event event, std::function<void(void)> cb = nullptr);
+    int  delEvent(int fd, Event event);
+    int  cancelEvent(int fd, Event event);
+    int  cancelAll(int fd);
+    int  getfdEvent(int fd);
+
+public:
+    virtual bool isStoped() override;
+    virtual void idle() override;
+    virtual void tickle() override;
+    virtual void onTimerInsertedFront() override;
+
+public:
+    static IOManager* GetThis();
+
+private:
+    std::vector<FdContext*>    m_fdContexts;
+    std::atomic<uint32_t>      m_penddingEventCount = {0};
+    int                        m_pipfd[2];
+    int                        m_epollfd;
+    MutexType                  m_mutex;
+    std::random_device         m_rd;
+    std::default_random_engine m_re;
+};
 }  // namespace lane
 
 #endif

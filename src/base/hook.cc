@@ -12,10 +12,11 @@
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
 
 namespace lane {
-    static lane::ConfigVar<int>::ptr g_tcp_connect_timeout =
-        lane::ConfigVarMgr::GetInstance()->lookUp(
-            "tcp.connect.timeout", 5000, "tcp connect timeout");
-    static thread_local bool t_hook_enable = false;
+static lane::ConfigVar<int>::ptr g_tcp_connect_timeout =
+    lane::ConfigVarMgr::GetInstance()->lookUp("tcp.connect.timeout",
+                                              5000,
+                                              "tcp connect timeout");
+static thread_local bool t_hook_enable = false;
 #define HOOK_FUN(XX) \
     XX(sleep)        \
     XX(usleep)       \
@@ -39,41 +40,41 @@ namespace lane {
     XX(getsockopt)   \
     XX(setsockopt)
 
-    void hook_init() {
-        static bool is_inited = false;
-        if (is_inited) {
-            return;
-        }
-#define XX(name) name##_f = (name##_fun)dlsym(RTLD_NEXT, #name);
-        HOOK_FUN(XX);
-#undef XX
+void hook_init() {
+    static bool is_inited = false;
+    if (is_inited) {
+        return;
     }
+#define XX(name) name##_f = (name##_fun)dlsym(RTLD_NEXT, #name);
+    HOOK_FUN(XX);
+#undef XX
+}
 
-    static uint64_t s_connect_timeout = -1;
-    struct _HookIniter {
-        _HookIniter() {
-            hook_init();
-            s_connect_timeout = g_tcp_connect_timeout->getValue();
+static uint64_t s_connect_timeout = -1;
+struct _HookIniter {
+    _HookIniter() {
+        hook_init();
+        s_connect_timeout = g_tcp_connect_timeout->getValue();
 
-            //??
-            g_tcp_connect_timeout->addListener([](const int& old_value,
-                                                  const int& new_value) {
+        //??
+        g_tcp_connect_timeout->addListener(
+            [](const int& old_value, const int& new_value) {
                 LANE_LOG_INFO(g_logger) << "tcp connect timeout changed from "
                                         << old_value << " to " << new_value;
                 s_connect_timeout = new_value;
             });
-        }
-    };
-
-    static _HookIniter s_hook_initer;
-
-    bool is_hook_enable() {
-        return t_hook_enable;
     }
+};
 
-    void set_hook_enable(bool flag) {
-        t_hook_enable = flag;
-    }
+static _HookIniter s_hook_initer;
+
+bool is_hook_enable() {
+    return t_hook_enable;
+}
+
+void set_hook_enable(bool flag) {
+    t_hook_enable = flag;
+}
 
 }  // namespace lane
 
@@ -82,11 +83,11 @@ struct timer_info {
 };
 
 template <typename OriginFun, typename... Args>
-static ssize_t do_io(int fd,
-                     OriginFun fun,
+static ssize_t do_io(int         fd,
+                     OriginFun   fun,
                      const char* hook_fun_name,
-                     uint32_t event,
-                     int timeout_so,
+                     uint32_t    event,
+                     int         timeout_so,
                      Args&&... args) {
     if (!lane::t_hook_enable) {
         return fun(fd, std::forward<Args>(args)...);
@@ -106,7 +107,7 @@ static ssize_t do_io(int fd,
         return fun(fd, std::forward<Args>(args)...);
     }
 
-    uint64_t to = ctx->getTimeout(timeout_so);
+    uint64_t                    to = ctx->getTimeout(timeout_so);
     std::shared_ptr<timer_info> tinfo(new timer_info);
 
 retry:
@@ -115,8 +116,8 @@ retry:
         n = fun(fd, std::forward<Args>(args)...);
     }
     if (n == -1 && errno == EAGAIN) {
-        lane::IOManager* iom = lane::IOManager::GetThis();
-        lane::Timer::ptr timer;
+        lane::IOManager*          iom = lane::IOManager::GetThis();
+        lane::Timer::ptr          timer;
         std::weak_ptr<timer_info> winfo(tinfo);
 
         if (to != (uint64_t)-1) {
@@ -129,6 +130,8 @@ retry:
                 iom->cancelEvent(fd, (lane::IOManager::Event)(event));
             });
         }
+        LANE_LOG_DEBUG(g_logger) << "call add event name:" << hook_fun_name;
+
 
         int rt = iom->addEvent(fd, (lane::IOManager::Event)(event));
         if (rt) {
@@ -140,6 +143,13 @@ retry:
             return -1;
         } else {
             lane::Fiber::YieldToHold();
+            // 被TrigerEvent之后，这里的event也应该被相应的去除掉
+            auto m_event = iom->getfdEvent(fd);
+            event = m_event;
+            if (event == lane::IOManager::Event::NONE) {
+                // 没有事件了就应该提前退出
+                return -1;
+            }
             if (timer) {
                 timer->cancel();
             }
@@ -228,10 +238,10 @@ int socket(int domain, int type, int protocol) {
     return fd;
 }
 
-int connect_with_timeout(int fd,
+int connect_with_timeout(int                    fd,
                          const struct sockaddr* addr,
-                         socklen_t addrlen,
-                         uint64_t timeout_ms) {
+                         socklen_t              addrlen,
+                         uint64_t               timeout_ms) {
     if (!lane::t_hook_enable) {
         return connect_f(fd, addr, addrlen);
     }
@@ -256,10 +266,10 @@ int connect_with_timeout(int fd,
         return n;
     }
 
-    lane::IOManager* iom = lane::IOManager::GetThis();
-    lane::Timer::ptr timer;
+    lane::IOManager*            iom = lane::IOManager::GetThis();
+    lane::Timer::ptr            timer;
     std::shared_ptr<timer_info> tinfo(new timer_info);
-    std::weak_ptr<timer_info> winfo(tinfo);
+    std::weak_ptr<timer_info>   winfo(tinfo);
 
     if (timeout_ms != (uint64_t)-1) {
         timer = iom->addTimer(timeout_ms, [winfo, fd, iom]() {
@@ -290,7 +300,7 @@ int connect_with_timeout(int fd,
             << "connect addEvent(" << fd << ", WRITE) error";
     }
 
-    int error = 0;
+    int       error = 0;
     socklen_t len = sizeof(int);
     if (-1 == getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &len)) {
         return -1;
@@ -342,12 +352,12 @@ ssize_t recv(int sockfd, void* buf, size_t len, int flags) {
                  flags);
 }
 
-ssize_t recvfrom(int sockfd,
-                 void* buf,
-                 size_t len,
-                 int flags,
+ssize_t recvfrom(int              sockfd,
+                 void*            buf,
+                 size_t           len,
+                 int              flags,
                  struct sockaddr* src_addr,
-                 socklen_t* addrlen) {
+                 socklen_t*       addrlen) {
     return do_io(sockfd,
                  recvfrom_f,
                  "recvfrom",
@@ -396,12 +406,12 @@ ssize_t send(int s, const void* msg, size_t len, int flags) {
                  flags);
 }
 
-ssize_t sendto(int s,
-               const void* msg,
-               size_t len,
-               int flags,
+ssize_t sendto(int                    s,
+               const void*            msg,
+               size_t                 len,
+               int                    flags,
                const struct sockaddr* to,
-               socklen_t tolen) {
+               socklen_t              tolen) {
     return do_io(s,
                  sendto_f,
                  "sendto",
@@ -462,7 +472,7 @@ int fcntl(int fd, int cmd, ... /* arg */) {
         } break;
         case F_GETFL: {
             va_end(va);
-            int arg = fcntl_f(fd, cmd);
+            int              arg = fcntl_f(fd, cmd);
             lane::FdCtx::ptr ctx = lane::FdMgr::GetInstance()->get(fd);
             if (!ctx || ctx->isClose() || !ctx->isSocket()) {
                 return arg;
@@ -525,7 +535,7 @@ int ioctl(int d, unsigned long int request, ...) {
     va_end(va);
 
     if (FIONBIO == request) {
-        bool user_nonblock = !!*(int*)arg;
+        bool             user_nonblock = !!*(int*)arg;
         lane::FdCtx::ptr ctx = lane::FdMgr::GetInstance()->get(d);
         if (!ctx || ctx->isClose() || !ctx->isSocket()) {
             return ioctl_f(d, request, arg);
@@ -535,13 +545,19 @@ int ioctl(int d, unsigned long int request, ...) {
     return ioctl_f(d, request, arg);
 }
 
-int getsockopt(
-    int sockfd, int level, int optname, void* optval, socklen_t* optlen) {
+int getsockopt(int        sockfd,
+               int        level,
+               int        optname,
+               void*      optval,
+               socklen_t* optlen) {
     return getsockopt_f(sockfd, level, optname, optval, optlen);
 }
 
-int setsockopt(
-    int sockfd, int level, int optname, const void* optval, socklen_t optlen) {
+int setsockopt(int         sockfd,
+               int         level,
+               int         optname,
+               const void* optval,
+               socklen_t   optlen) {
     if (!lane::t_hook_enable) {
         return setsockopt_f(sockfd, level, optname, optval, optlen);
     }
