@@ -7,7 +7,7 @@
 #include "base/mutex.h"
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
 class FiberSemCallBack {
-   public:
+public:
     FiberSemCallBack() : m_fs(0) {
         // LANE_LOG_INFO(g_logger) << "FiberSemCallBack()";
     }
@@ -18,11 +18,11 @@ class FiberSemCallBack {
     void waitCB() {
         LANE_LOG_INFO(g_logger) << "entry wait";
         if (m_fs.waitForSeconds(5) == true) {
-            LANE_LOG_INFO(g_logger)
-                << "time out, " << "sem = " << (int)m_fs.getSem();
+            LANE_LOG_INFO(g_logger) << "time out, "
+                                    << "sem = " << (int)m_fs.getSem();
         } else {
-            LANE_LOG_INFO(g_logger)
-                << "get sem," << "sem = " << (int)m_fs.getSem();
+            LANE_LOG_INFO(g_logger) << "get sem,"
+                                    << "sem = " << (int)m_fs.getSem();
         }
         LANE_LOG_INFO(g_logger) << "exit wait";
 
@@ -61,13 +61,14 @@ class FiberSemCallBack {
         LANE_LOG_INFO(g_logger) << "comsumer get lock";
     }
 
-   private:
+private:
     lane::FiberSemaphore m_fs;
     lane::FiberMutex     m_fm;
 };
 
 static FiberSemCallBack fsc;
-int                     main() {
+
+int main() {
     // g_logger->setLevel(lane::LogLevel::INFO);
     lane::IOManager iom(1, "test_mutex", true);
     // iom.addTask(std::bind(

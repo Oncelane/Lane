@@ -18,6 +18,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "base/fiber.h"
@@ -76,11 +77,13 @@ public:
     static IOManager* GetThis();
 
 private:
-    std::vector<FdContext*> m_fdContexts;
-    std::atomic<uint32_t>   m_penddingEventCount = {0};
-    int                     m_pipfd[2];
-    int                     m_epollfd;
-    MutexType               m_mutex;
+    std::vector<FdContext*>    m_fdContexts;
+    std::atomic<uint32_t>      m_penddingEventCount = {0};
+    int                        m_pipfd[2];
+    int                        m_epollfd;
+    MutexType                  m_mutex;
+    std::random_device         m_rd;
+    std::default_random_engine m_re;
 };
 }  // namespace lane
 

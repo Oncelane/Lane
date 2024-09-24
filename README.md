@@ -1,13 +1,18 @@
-## Lane-ServerFramework
+# Lane
 
 本项目基于 sylar 和 lunar 的协程服务器框架，以体验优化技术为主要目标，将重写整个服务器框架
 
 优化： gmp 调度，boost.fcontext 协程切换
-实现：协程锁、协程条件变量、channel
+
+实现：协程锁、协程条件变量、channel(未完全测试)
 
 待实现： 协程池、select
 
-### 项目依赖
+# 压测数据
+
+![压测](./docs/压测lane和golang.png)
+
+# 项目依赖
 
 ```bash
 # boost
@@ -29,7 +34,7 @@ make -j8
 sudo make install
 ```
 
-### 项目启动
+# 项目启动
 
 1. 拉取仓库，切换分支
 
@@ -68,10 +73,10 @@ make && sudo make install
 
 ```sh
 ../bin/test_httpserver
-webbench -c 1000 -t 30 http://127.0.0.1:8020/
+webbench -c 1000 -t 30 http://127.0.0.1:8020//
 ```
 
-开发环境
+# 开发环境
 
 https://blog.csdn.net/m0_72743841/article/details/139465617
 

@@ -12,15 +12,15 @@ static lane::Logger::ptr g_logger = LANE_LOG_ROOT();
 #define XX(...) #__VA_ARGS__
 lane::IOManager::ptr worker;
 void                 run() {
-    g_logger->setLevel(lane::LogLevel::INFO);
-    // lane::http::HttpServer::ptr server(new lane::http::HttpServer(true,
-    // worker.get(), lane::IOManager::GetThis()));
-    lane::http::HttpServer::ptr server(new lane::http::HttpServer(true));
-    lane::Address::ptr addr = lane::Address::LookupAnyIPAddress("0.0.0.0:8020");
-    while (!server->bind(addr)) {
+                    g_logger->setLevel(lane::LogLevel::INFO);
+                    // lane::http::HttpServer::ptr server(new lane::http::HttpServer(true,
+                    // worker.get(), lane::IOManager::GetThis()));
+                    lane::http::HttpServer::ptr server(new lane::http::HttpServer(true));
+                    lane::Address::ptr addr = lane::Address::LookupAnyIPAddress("0.0.0.0:8020");
+                    while (!server->bind(addr)) {
     }
-    auto sd = server->getServletDispatch();
-    sd->addServlet("/sylar/xx",
+                    auto sd = server->getServletDispatch();
+                    sd->addServlet("/sylar/xx",
                    [](lane::http::HttpRequest::ptr  req,
                       lane::http::HttpResponse::ptr rsp,
                       lane::http::HttpSession::ptr  session) {
@@ -28,7 +28,7 @@ void                 run() {
                        return 0;
                    });
 
-    sd->addGlobServlet("/sylar/*",
+                    sd->addGlobServlet("/sylar/*",
                        [](lane::http::HttpRequest::ptr  req,
                           lane::http::HttpResponse::ptr rsp,
                           lane::http::HttpSession::ptr  session) {
@@ -36,7 +36,7 @@ void                 run() {
                            return 0;
                        });
 
-    sd->addGlobServlet(
+                    sd->addGlobServlet(
         "/sylar/*",
         [](lane::http::HttpRequest::ptr  req,
            lane::http::HttpResponse::ptr rsp,
@@ -48,15 +48,15 @@ void                 run() {
                             / center > </ body></ html>));
             return 0;
         });
-    server->start();
-    lane::IOManager::GetThis()->addTimer(
-        1000 * 60, [server]() { server->stop(); }, false);
+                    server->start();
+                    //             lane::IOManager::GetThis()->addTimer(
+                    // 1000 * 60, [server]() { server->stop(); }, false);
 }
 
 
 int main(int argc, char** argv) {
     // 注册信号处理函数
-
+    signal(SIGPIPE, SIG_IGN);
     printf("test\n");
     // worker.reset(new lane::IOManager(3, "worker", false));
     lane::IOManager iom(12, "main", false);

@@ -176,6 +176,7 @@ void Fiber::MainFun(boost::context::detail::transfer_t in) {
                  "never reach fiber_id=" + std::to_string(raw_ptr->getId()));
 }
 void Fiber::YieldToHold() {
+    //因为swapOut的存在，函数不会正常结束，局部变量不会正常析构，此处就要避免创造第二个shared_ptr，影响fiber对象析构
     auto raw_ptr = GetThis().get();
     raw_ptr->m_state = HOLD;
 

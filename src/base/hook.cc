@@ -177,7 +177,7 @@ unsigned int sleep(unsigned int seconds) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(seconds * 1000,
-                  std::bind((void (lane::Scheduler::*)(
+                  std::bind((void(lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,
@@ -195,7 +195,7 @@ int usleep(useconds_t usec) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(usec / 1000,
-                  std::bind((void (lane::Scheduler::*)(
+                  std::bind((void(lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,
@@ -215,7 +215,7 @@ int nanosleep(const struct timespec* req, struct timespec* rem) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(timeout_ms,
-                  std::bind((void (lane::Scheduler::*)(
+                  std::bind((void(lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,

@@ -1,5 +1,11 @@
 #include "base/iomanager.h"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <random>
+
+#include "base/hook.h"
 #include "base/log.h"
 #include "base/macro.h"
 #include "base/timer.h"
@@ -7,9 +13,9 @@ namespace lane {
 
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
 void               IOManager::FdContext::EventContext::reset() {
-    m_fiber.reset();
-    m_cb = nullptr;
-    m_scheduler = nullptr;
+                  m_fiber.reset();
+                  m_cb = nullptr;
+                  m_scheduler = nullptr;
 }
 
 void IOManager::FdContext::TrigleEvent(Event event) {
@@ -62,7 +68,7 @@ void IOManager::FdContext::resetEventContext(Event event) {
 }
 
 IOManager::IOManager(uint32_t threadCount, const std::string &name, bool useCur)
-    : Scheduler(threadCount, name, useCur) {
+    : Scheduler(threadCount, name, useCur), m_re(m_rd()) {
     // 将pipfd读端设置成非阻塞。
     int flag = 0;
     int rt = 0;
@@ -296,7 +302,7 @@ static const uint32_t MAXFD = 256;
 static uint64_t MAX_TIMEOUT = 3000;
 
 void IOManager::idle() {
-    epoll_event *                epevents = new epoll_event[MAXFD]();
+    epoll_event                 *epevents = new epoll_event[MAXFD]();
     std::shared_ptr<epoll_event> shared_event(
         epevents, [](epoll_event *ptr) { delete[] ptr; });
     while (!isStoped()) {
@@ -315,7 +321,9 @@ void IOManager::idle() {
         TimerManager::listAllExpire(cbs);
 
         Scheduler::schedule(cbs.begin(), cbs.end());
+
         for (int i = 0; i < rt; i++) {
+            // int i = newOrder[index];
             // pip IO
             if (epevents[i].data.fd == m_pipfd[0]) {
                 // 唤醒就行，无需加锁
@@ -330,9 +338,14 @@ void IOManager::idle() {
             // socket IO
             FdContext *fdctx = (FdContext *)(epevents[i].data.ptr);
             // modify...
-            Event                      triEvent = NONE;
+            Event triEvent = NONE;
+
+            // LANE_LOG_FATAL(g_logger)
+            //     << "lock on i=" << i << " fd=" << fdctx->m_fd;
+
             FdContext::MutexType::Lock lock(fdctx->m_mutex);
 
+            // sleep_f(1);
             // (EPOLLIN | EPOLLOUT) 整体可以作为一个叫 IOMASK的宏。
             if (epevents[i].events & (EPOLLHUP | EPOLLERR)) {
                 epevents[i].events |= ((EPOLLIN | EPOLLOUT) & fdctx->m_events);
