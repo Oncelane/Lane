@@ -15,19 +15,17 @@ void testOneLog() {
     iom.schedule(std::bind(
         (void(lane::AsyncLog::*)(void))(&lane::AsyncLog::backGroundHandler),
         alog));
-    iom.schedule([]() {
-        LANE_LOG_INFO(g_logger) << "ok";
-    });
+    iom.schedule([]() { LANE_LOG_INFO(g_logger) << "ok"; });
 
     return;
 }
 
 static const int kMicroSecondsPerSecond = 1000 * 1000;
-int64_t now() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    int64_t seconds = tv.tv_sec;
-    return seconds * kMicroSecondsPerSecond + tv.tv_usec;
+int64_t          now() {
+             struct timeval tv;
+             gettimeofday(&tv, NULL);
+             int64_t seconds = tv.tv_sec;
+             return seconds * kMicroSecondsPerSecond + tv.tv_usec;
 }
 
 /*
@@ -39,8 +37,8 @@ inline double timeDifference(int64_t high, int64_t low) {
 }
 
 void bench(bool longLog) {
-    int cnt = 0;
-    const int kBatch = 1000;
+    int         cnt = 0;
+    const int   kBatch = 1000;
     std::string empty = " ";
     std::string longStr(3000, 'X');
     longStr += " ";
@@ -55,12 +53,13 @@ void bench(bool longLog) {
             ++cnt;
         }
         int64_t end = now();
-        double seconds = timeDifference(end, start);
-        size_t total;
+        double  seconds = timeDifference(end, start);
+        size_t  total;
         LANE_ASSERT(g_logger->getTotalSize(total) == 1);
 
         printf(
-            "%12s: %f seconds, %d bytes, %10.2f msg/s, %.2f MiB/s, %f us/msg\n",
+            "%12s: %f seconds, %ld bytes, %10.2f msg/s, %.2f MiB/s, %f "
+            "us/msg\n",
             longLog ? "long log" : "short log",
             seconds,
             total,

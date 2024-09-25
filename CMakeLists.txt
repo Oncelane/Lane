@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
 project(Lane)
+set(CMAKE_BUILD_TYPE Debug)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # find_package(yaml-cpp REQUIRED)
 find_library(yaml yaml-cpp)
@@ -81,3 +83,6 @@ target_link_libraries(test_channel  laneLib)
 
 add_executable(test_fcontext tests/test_fcontext.cc)
 target_link_libraries(test_fcontext  laneLib)
+
+add_executable(test_coredump tests/test_coredump.cc)
+target_link_libraries(test_coredump  laneLib)
