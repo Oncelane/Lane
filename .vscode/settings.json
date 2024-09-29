@@ -1,0 +1,5 @@
+{
+  "go.gopath": "${workspaceFolder}",
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.path": "clangd","cmake.configureOnOpen": false
+}
