@@ -1,8 +1,7 @@
 #include "base/fiber.h"
 #include "base/log.h"
-#include "base/thread.h"
 lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
-void test() {
+void              test() {
     lane::Fiber::ptr fp(new lane::Fiber(
         []() {
             LANE_LOG_DEBUG(g_logger) << "fiber fun begin";

@@ -28,7 +28,7 @@ add_compile_options(-std=c++11 -Wall -g -O3)
 set (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 add_library (laneLib STATIC ${SRC_LIST})
 # set_target_properties (laneLib PROPERTIES OUTPUT_NAME "laneLib")
-target_link_libraries(laneLib yaml-cpp ${LIB_LIST} Boost::context mysqlclient)
+target_link_libraries(laneLib Boost::context ${LIB_LIST} yaml-cpp   mysqlclient)
 
 add_executable(test_log tests/test_log.cc)
 target_link_libraries(test_log laneLib)

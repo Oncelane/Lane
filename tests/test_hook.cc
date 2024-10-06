@@ -1,12 +1,17 @@
 #include <arpa/inet.h>
+#include <base/MysqlManager.h>
 #include <mysql/mysql.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
+
 #include "base/iomanager.h"
 #include "base/log.h"
+#include "base/mutex.h"
+
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
 
 void test_sleep() {
@@ -30,20 +35,22 @@ void test_sock() {
     sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(8090);
-    inet_pton(AF_INET, "47.99.79.135", &addr.sin_addr.s_addr);
+    addr.sin_port = htons(80);
+    inet_pton(AF_INET, "221.204.56.95", &addr.sin_addr.s_addr);
 
     LANE_LOG_INFO(g_logger) << "begin connect";
-    int rt = connect(sock, (const sockaddr*)&addr, sizeof(addr));
-    LANE_LOG_INFO(g_logger) << "connect rt=" << rt << " errno=" << errno;
+    int rt = connect(sock, (const sockaddr *)&addr, sizeof(addr));
+    LANE_LOG_INFO(g_logger) << "connect rt=" << rt << " errno=" << errno
+                            << " str:" << strerror(errno);
 
     if (rt) {
         return;
     }
 
-    const char data[] = "GET / HTTP/1.0\r\n\r\n";
+    const char data[] = "GET / HTTP/1.1\r\n\r\n";
     rt = send(sock, data, sizeof(data), 0);
-    LANE_LOG_INFO(g_logger) << "send rt=" << rt << " errno=" << errno;
+    LANE_LOG_INFO(g_logger)
+        << "send rt=" << rt << " errno=" << errno << " str:" << strerror(errno);
 
     if (rt <= 0) {
         return;
@@ -54,7 +61,8 @@ void test_sock() {
 
     rt = recv(sock, &buff[0], buff.size(), 0);
 
-    LANE_LOG_INFO(g_logger) << "recv rt=" << rt << " errno=" << errno;
+    LANE_LOG_INFO(g_logger)
+        << "recv rt=" << rt << " errno=" << errno << " str:" << strerror(errno);
 
     if (rt <= 0) {
         return;
@@ -69,66 +77,47 @@ void test_socket() {
 }
 
 
-const char* host = "127.0.0.1";         //主机名
-const char* user = "debian-sys-maint";  //用户名
-const char* pwd = "QTLVb6BaeeaJsFMT";   //密码
-const char* database_name = "yourdb";   //数据库名称
-int         port = 3306;                //端口号
-
-MYSQL* ConnetcMysql() {
-    MYSQL* sql = nullptr;
-    sql = mysql_init(sql);
-    if (!sql) {
-        std::cout << "MySql init error!" << std::endl;
-    }
-    sql = mysql_real_connect(
-        sql, host, user, pwd, database_name, port, nullptr, 0);
-
-    if (!sql) {
-        std::cout << "MySql Connect error!" << std::endl;
-    }
-    return sql;
-}
-
 void TestFiberMysql() {
-    auto        sql = ConnetcMysql();
-    std::string command = "select * from user;";
-
-    int ret = mysql_query(sql, command.c_str());  // 查询结果
-    std::cout << command << std::endl;
-    if (ret) {
-        std::cout << "error!" << std::endl;
-        printf("修改表数据失败！失败原因：%s\n", mysql_error(sql));
-    } else {
-        std::cout << "success!" << std::endl;
+    auto sql = lane::SqlMgr::GetInstance()->getSql();
+    if (mysql_query(sql, "SELECT * FROM user")) {
+        fprintf(stderr, "SELECT * failed. Error: %s\n", mysql_error(sql));
     }
 
-    MYSQL_RES* res_ptr = mysql_store_result(sql);
-
-    MYSQL_ROW sqlrow = mysql_fetch_row(res_ptr);  // 读取一行
-
-    if (sqlrow) {
-
-        for (unsigned int i = 0; i < mysql_num_fields(res_ptr); i++) {
-            std::cout << sqlrow[i] << " ";
+    MYSQL_RES *res = mysql_store_result(sql);
+    if (res) {
+        // 处理结果
+        //打印各行
+        MYSQL_ROW row = NULL;
+        row = mysql_fetch_row(res);
+        while (NULL != row) {
+            for (int i = 0; i < 2; i++) {
+                std::cout << row[i] << "\t\t";
+            }
+            std::cout << std::endl;
+            row = mysql_fetch_row(res);
         }
-        std::cout << std::endl;
+
+        mysql_free_result(res);
     }
-    mysql_free_result(res_ptr);
-    mysql_close(sql);
+    lane::SqlMgr::GetInstance()->putSql(sql);
 }
 
 void TestMain() {
+    auto sqlmgr = lane::SqlMgr::GetInstance();
+    LANE_LOG_INFO(g_logger) << sqlmgr;
 
-    lane::IOManager iom(2, "test", false);
+    lane::IOManager iom(2, "system", false);
     iom.addTask([=]() {
-        for (int i = 0; i < 2; ++i) {
-            TestFiberMysql();
+        for (int i = 0; i < 24; ++i) {
+            lane::IOManager::GetThis()->addTask([=]() { TestFiberMysql(); });
         }
     });
+
     std::cin.get();
 }
 
 int main() {
+    // test_socket();
+    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::INFO);
     TestMain();
 }
