@@ -11,7 +11,7 @@ namespace lane {
 class MysqlManager {
 private:
     std::queue<MYSQL*> m_freeSqls;
-    lane::Mutex        m_mu;
+    Mutex              m_mu;
     const char*        host = "127.0.0.1";         //主机名
     const char*        user = "debian-sys-maint";  //用户名
     const char*        pwd = "QTLVb6BaeeaJsFMT";   //密码
@@ -55,7 +55,7 @@ public:
         }
     }
     MYSQL* getSql() {
-        lane::Mutex::Lock lock(m_mu);
+        Mutex::Lock lock(m_mu);
         if (m_freeSqls.empty()) {
             return nullptr;
         }
@@ -64,7 +64,7 @@ public:
         return ret;
     }
     void putSql(MYSQL* sql) {
-        lane::Mutex::Lock lock(m_mu);
+        Mutex::Lock lock(m_mu);
         m_freeSqls.push(sql);
     }
 };

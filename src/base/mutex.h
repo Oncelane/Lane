@@ -202,7 +202,7 @@ public:
         m_fs.wait();
     }
     void unlock() {
-        assert(m_fs.getSem() == 0);
+        assert(m_fs.getSem() <= 0);
         m_fs.post();
     }
 
