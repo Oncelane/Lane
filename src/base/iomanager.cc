@@ -1,11 +1,9 @@
 #include "base/iomanager.h"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <random>
 
-#include "base/hook.h"
 #include "base/log.h"
 #include "base/macro.h"
 #include "base/timer.h"
@@ -13,9 +11,9 @@ namespace lane {
 
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
 void               IOManager::FdContext::EventContext::reset() {
-                  m_fiber.reset();
-                  m_cb = nullptr;
-                  m_scheduler = nullptr;
+    m_fiber.reset();
+    m_cb = nullptr;
+    m_scheduler = nullptr;
 }
 
 void IOManager::FdContext::TrigleEvent(Event event) {
@@ -302,7 +300,7 @@ static const uint32_t MAXFD = 256;
 static uint64_t MAX_TIMEOUT = 3000;
 
 void IOManager::idle() {
-    epoll_event                 *epevents = new epoll_event[MAXFD]();
+    epoll_event *                epevents = new epoll_event[MAXFD]();
     std::shared_ptr<epoll_event> shared_event(
         epevents, [](epoll_event *ptr) { delete[] ptr; });
     while (!isStoped()) {
