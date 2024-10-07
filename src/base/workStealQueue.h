@@ -107,8 +107,8 @@ public:
         if (m_queue.empty()) {
             return false;
         }
-        for (int i = 0; i < (m_queue.size() + 1) / 2; ++i) {
-            outVec.push_back(std::move(m_queue.back()));
+        for (long unsigned int i = 0; i < (m_queue.size() + 1) / 2; ++i) {
+            outVec.push_back(m_queue.back());
             m_queue.pop_back();
         }
         return outVec.size();

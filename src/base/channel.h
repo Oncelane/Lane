@@ -7,6 +7,7 @@
 #include <queue>
 
 #include "base/iomanager.h"
+#include "base/log.h"
 #include "base/macro.h"
 #include "base/mutex.h"
 #include "base/noncopyable.h"
@@ -46,54 +47,53 @@ public:
     ~Channel() {}
 
     std::optional<T> output() {
+        Mutex::Lock lock(m_mu);
         if (m_close) {
             return std::nullopt;
         }
         switch (m_type) {
             case unbuffered: {
-                m_item.wait();
-                m_mu.lock();
+
+                m_item.wait(m_mu);
                 if (m_close && m_queue.empty()) {
                     return std::nullopt;
                 }
-
                 T out = m_queue.front();
                 m_queue.pop();
                 --m_size;
-                m_mu.unlock();
-                m_space.post();
+
+                m_space.post(m_mu);
                 return out;
                 break;
             }
             case buffered: {
-                m_item.wait();
-                m_mu.lock();
+                m_item.wait(m_mu);
+
                 if (m_close && m_queue.empty()) {
                     return std::nullopt;
                 }
                 T out = m_queue.front();
                 m_queue.pop();
                 --m_size;
-                m_mu.unlock();
-                m_space.post();
+
+                m_space.post(m_mu);
                 return out;
                 break;
             }
             case conflated: {
-                m_mu.lock();
+
                 while (m_queue.empty()) {
 
                     auto iom = IOManager::GetThis();
                     iom->addBlock();
                     m_waitQueue.emplace_back(iom, Fiber::GetThis());
-                    m_mu.unlock();
+
                     Fiber::YieldToHold();
-                    m_mu.lock();
                 }
                 T out = m_queue.front();
                 m_queue.pop();
                 --m_size;
-                m_mu.unlock();
+
                 return out;
                 break;
             }
@@ -102,9 +102,10 @@ public:
     }
 
     bool input(T in) {
+        Mutex::Lock lock(m_mu);
         switch (m_type) {
             case conflated: {
-                m_mu.lock();
+
                 if (!m_queue.empty()) {
                     m_queue.pop();
                 }
@@ -115,49 +116,49 @@ public:
                     wake.first->schedule(wake.second);
                     wake.first->delBlock();
                 }
-                m_mu.unlock();
+
                 break;
             }
             case unbuffered: {
-                m_mu.lock();
+
                 if (m_close) {
-                    m_mu.unlock();
+
                     return false;
                 }
                 if (m_queue.empty()) {
                     m_queue.push(in);
                     ++m_size;
-                    m_item.post();
-                    m_mu.unlock();
-
-                    m_space.wait();
+                    m_item.post(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
+                        << "stuck in m_space(first)";
+                    m_space.wait(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
                 } else {
-                    m_mu.unlock();
-
-                    m_space.wait();
-                    m_mu.lock();
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
+                        << "stuck in m_space(second)";
+                    m_space.wait(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
                     if (m_close) {
-                        m_mu.unlock();
+
                         return false;
                     }
                     m_queue.push(in);
                     ++m_size;
-                    m_mu.unlock();
-                    m_item.post();
+
+                    m_item.post(m_mu);
                 }
+
                 break;
             }
             case buffered: {
-                m_space.wait();
-                m_mu.lock();
+                m_space.wait(m_mu);
                 if (m_close) {
-                    m_mu.unlock();
+
                     return false;
                 }
                 m_queue.push(in);
                 ++m_size;
-                m_mu.unlock();
-                m_item.post();
+                m_item.post(m_mu);
                 break;
             }
         }
@@ -175,12 +176,11 @@ public:
         }
     }
     bool close() {
-        m_mu.lock();
+        Mutex::Lock lock(m_mu);
         // if (m_close) {
         //     return false;
         // }
         m_close = true;
-        m_mu.unlock();
         m_space.resize(INT8_MAX);
         m_item.resize(INT8_MAX);
         m_space.resize(INT8_MAX);
@@ -221,7 +221,7 @@ public:
 private:
     FiberSemaphore                                           m_space;
     FiberSemaphore                                           m_item;
-    FiberMutex                                               m_mu;
+    Mutex                                                    m_mu;
     std::queue<T>                                            m_queue;
     bool                                                     m_close;
     uint32_t                                                 m_cap;

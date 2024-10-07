@@ -174,8 +174,10 @@ public:
     FiberSemaphore(uint32_t count = 0);
     ~FiberSemaphore();
     void   wait();
+    void   wait(Mutex& mu);
     bool   waitForSeconds(time_t seconds);
     void   post();
+    void   post(Mutex& mu);
     int8_t getSem();
     void   reset();
     void   resize(int8_t size);

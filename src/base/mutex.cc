@@ -88,6 +88,26 @@ void FiberSemaphore::wait() {
     return;
 }
 
+void FiberSemaphore::wait(Mutex& m_mutex) {
+
+
+    if (m_sem > 0) {  // 有资源
+        m_sem -= 1;
+        return;
+    } else {
+        LANE_ASSERT(m_sem == 0);
+        IOManager* iom = IOManager::GetThis();
+        iom->addBlock();
+        m_waitQueue.push_back(std::make_pair(iom, Fiber::GetThis()));
+        m_mutex.unlock();
+        Fiber::YieldToHold();
+        m_mutex.lock();
+        LANE_ASSERT(m_sem > 0)
+        m_sem -= 1;
+    }
+    return;
+}
+
 // 这里操作逻辑和wait类似，但是唤醒的方式有两种，一是通过其他协程调用post、二是通过定时器超时的回调函数。
 // 这里将seconds定为秒数吧
 bool FiberSemaphore::waitForSeconds(time_t seconds) {
@@ -140,12 +160,12 @@ bool FiberSemaphore::waitForSeconds(time_t seconds) {
     m_sem -= 1;
     return false;
 }
-void FiberSemaphore::post() {  // 资源增一并从等待队列随机唤醒一个等待的协程
+void FiberSemaphore::post() {
     Mutex::Lock lock(m_mutex);
     // LANE_ASSERT(m_sem >= 0);
     m_sem++;
 
-    if (m_waitQueue.empty() == false) {  // 非空
+    if (m_waitQueue.empty() == false) {
         auto toWakeup = m_waitQueue.front();
 
         m_waitQueue.pop_front();
@@ -155,6 +175,22 @@ void FiberSemaphore::post() {  // 资源增一并从等待队列随机唤醒一�
 
     return;
 }
+
+void FiberSemaphore::post(Mutex& m_mutex) {
+    // LANE_ASSERT(m_sem >= 0);
+    m_sem++;
+
+    if (m_waitQueue.empty() == false) {
+        auto toWakeup = m_waitQueue.front();
+
+        m_waitQueue.pop_front();
+        toWakeup.first->schedule(toWakeup.second);
+        toWakeup.first->delBlock();
+    }
+
+    return;
+}
+
 int8_t FiberSemaphore::getSem() {
     Mutex::Lock lock(m_mutex);
 

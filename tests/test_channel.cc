@@ -51,7 +51,7 @@ void TestUnbufferChannelMain() {
         TestConsumer(ch);
         std::cout << "==================end test===============" << std::endl;
         delete ch;
-        std::cin.get();
+        // std::cin.get();
     }
 }
 
