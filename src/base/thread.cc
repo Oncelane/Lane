@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "base/log.h"
 #include "base/macro.h"
 #include "scheduler.h"
 #include "workStealQueue.h"

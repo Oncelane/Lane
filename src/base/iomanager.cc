@@ -291,8 +291,15 @@ int IOManager::getfdEvent(int fd) {
 }
 
 bool IOManager::isStoped() {
+    // LANE_LOG_DEBUG(g_logger)
+    //     << "STOP "
+    //     << (Scheduler::isStoped() && m_penddingEventCount == 0 &&
+    //         !(TimerManager::hasTimer()))
+    //     << " Scheduler::isStoped() " << Scheduler::isStoped()
+    //     << " m_penddingEventCount " << (m_penddingEventCount == 0)
+    //     << " !(TimerManager::hasTimer()) " << !(TimerManager::hasTimer());
     return Scheduler::isStoped() && m_penddingEventCount == 0 &&
-           !(TimerManager::hasTimer());
+           m_blockFiber == 0 && !(TimerManager::hasTimer());
 }
 
 static const uint32_t MAXFD = 256;

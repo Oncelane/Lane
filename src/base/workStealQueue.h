@@ -12,14 +12,49 @@ class WorkStealQueue {
 public:
     WorkStealQueue() {}
 
-    void push_front(T& item) {
+    void push_front(T item) {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_queue.push_front(item);
     }
 
-    void push_back(T& item) {
+    void push_back(T item) {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_queue.push_back(item);
+    }
+
+    bool push_back_if_empty(T item) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_queue.size() == 0) {
+            m_queue.push_back(item);
+            return true;
+        }
+        return false;
+    }
+
+    T pop_front() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        auto out = m_queue.front();
+        m_queue.pop_front();
+        return out;
+    }
+
+    T pop_back() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        auto out = m_queue.back();
+        m_queue.pop_back();
+        return out;
+    }
+
+    T front() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_queue.front();
+    }
+
+    T back() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_queue.back();
     }
 
     bool empty() const {
@@ -50,7 +85,7 @@ public:
     std::shared_ptr<T> try_pop() {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {
-            return std::shared_ptr<T>();
+            return nullptr;
         }
         std::shared_ptr<T> out(std::make_shared<T>(std::move(m_queue.front())));
         m_queue.pop_front();
