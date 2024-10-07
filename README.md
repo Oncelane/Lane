@@ -1,28 +1,23 @@
 # Lane
 
-本项目基于 sylar 和 lunar 的协程服务器框架，以体验优化技术为主要目标，将重写整个服务器框架
+本项目基于 sylar 和 lunar 的协程服务器框架，以体验优化技术为主要目标,重点优化协程模块
 
-优化：
+已实现
 
-- gmp 调度
+- gmp 调度，worksteal 调度模式
 - boost.fcontext 协程切换
-
-实现：
-
-- 协程锁
-- 协程条件变量
-- channel(未完全测试)
-
-未实现
-
+- 协程互斥锁
+- 协程信号量
+- channel(无缓冲/有缓冲)
+- waitGroup
 - 协程池
 
 # 压测数据
 
-| 项目   | QPS    |
-| ------ | ------ |
-| lane   | 8.71W+ |
-| golang | 7.00W  |
+| 项目   | QPS   |
+| ------ | ----- |
+| lane   | 8.71W |
+| golang | 7.00W |
 
 测试页面：
 
@@ -51,7 +46,7 @@ lane 压测页面内容不变为 135 bytes，golang 压测页面内容减少，�
 | ------------ | ----- |
 | lane O0 编译 | 3.39W |
 | golang       | 3.97W |
-| lane O3 编译 | 5.96W |
+| lane O2 编译 | 5.96W |
 
 # 项目依赖
 
@@ -87,7 +82,7 @@ cd Lane
 切换分支
 
 ```bash
-git checkout boost-context
+git checkout little-work
 ```
 
 2. 编译

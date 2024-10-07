@@ -1,44 +1,233 @@
 
-#include <list>
+#include <sys/types.h>
 
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <queue>
+
+#include "base/iomanager.h"
+#include "base/log.h"
+#include "base/macro.h"
 #include "base/mutex.h"
 #include "base/noncopyable.h"
 
 namespace lane {
 
 template <class T>
-class channel : Noncopyable {
+class Channel : Noncopyable {
 public:
-    channel(uint32_t capacity)
-        : m_space(capacity), m_item(0), m_close(false), m_size(0) {};
-    ~channel() {}
+    enum Type {
+        conflated,
+        unbuffered,
+        buffered,
+    };
+    static const uint32_t CONFLATED = -1;
+    Channel(uint32_t capacity)
+        : m_space(capacity)
+        , m_item(0)
+        , m_close(false)
+        , m_cap(capacity)
+        , m_size(0) {
+        if (m_cap == CONFLATED) {
+            m_type = conflated;
+            // cold channel
+        } else if (m_cap == 0) {
+            m_type = unbuffered;
 
-    T output() {
-        m_item.wait();
-        T tmp = m_list.front();
-        m_list.pop_front();
-        m_space.post();
-        --m_size;
-        return tmp;
+            // unbuffer channel
+        } else if (m_cap < 0) {
+            LANE_ASSERT2(false, "init Channel cap < 0");
+            // exception
+        } else {
+            m_type = buffered;
+            // normal buffer channel
+        }
+    };
+    ~Channel() {}
+
+    std::optional<T> output() {
+        Mutex::Lock lock(m_mu);
+        if (m_close) {
+            return std::nullopt;
+        }
+        switch (m_type) {
+            case unbuffered: {
+
+                m_item.wait(m_mu);
+                if (m_close && m_queue.empty()) {
+                    return std::nullopt;
+                }
+                T out = m_queue.front();
+                m_queue.pop();
+                --m_size;
+
+                m_space.post(m_mu);
+                return out;
+                break;
+            }
+            case buffered: {
+                m_item.wait(m_mu);
+
+                if (m_close && m_queue.empty()) {
+                    return std::nullopt;
+                }
+                T out = m_queue.front();
+                m_queue.pop();
+                --m_size;
+
+                m_space.post(m_mu);
+                return out;
+                break;
+            }
+            case conflated: {
+
+                while (m_queue.empty()) {
+
+                    auto iom = IOManager::GetThis();
+                    iom->addBlock();
+                    m_waitQueue.emplace_back(iom, Fiber::GetThis());
+
+                    Fiber::YieldToHold();
+                }
+                T out = m_queue.front();
+                m_queue.pop();
+                --m_size;
+
+                return out;
+                break;
+            }
+        }
+        return std::nullopt;
     }
-    void input(T tmp) {
-        m_space.wait();
-        m_list.push_back(tmp);
-        m_item.post();
-        ++m_size;
-        return;
+
+    bool input(T in) {
+        Mutex::Lock lock(m_mu);
+        switch (m_type) {
+            case conflated: {
+
+                if (!m_queue.empty()) {
+                    m_queue.pop();
+                }
+                m_queue.push(in);
+                ++m_size;
+                if (!m_waitQueue.empty()) {
+                    auto wake = m_waitQueue.front();
+                    wake.first->schedule(wake.second);
+                    wake.first->delBlock();
+                }
+
+                break;
+            }
+            case unbuffered: {
+
+                if (m_close) {
+
+                    return false;
+                }
+                if (m_queue.empty()) {
+                    m_queue.push(in);
+                    ++m_size;
+                    m_item.post(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
+                        << "stuck in m_space(first)";
+                    m_space.wait(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
+                } else {
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
+                        << "stuck in m_space(second)";
+                    m_space.wait(m_mu);
+                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
+                    if (m_close) {
+
+                        return false;
+                    }
+                    m_queue.push(in);
+                    ++m_size;
+
+                    m_item.post(m_mu);
+                }
+
+                break;
+            }
+            case buffered: {
+                m_space.wait(m_mu);
+                if (m_close) {
+
+                    return false;
+                }
+                m_queue.push(in);
+                ++m_size;
+                m_item.post(m_mu);
+                break;
+            }
+        }
+
+        return true;
+    }
+    void range(std::function<void(T)> cb) {
+        while (true) {
+            auto out = output();
+            if (out.has_value()) {
+                cb(out.value());
+            } else {
+                break;
+            }
+        }
+    }
+    bool close() {
+        Mutex::Lock lock(m_mu);
+        // if (m_close) {
+        //     return false;
+        // }
+        m_close = true;
+        m_space.resize(INT8_MAX);
+        m_item.resize(INT8_MAX);
+        m_space.resize(INT8_MAX);
+        m_item.resize(INT8_MAX);
+        return true;
+    }
+
+
+    void reset(uint32_t capacity) noexcept {
+        m_space.resize(capacity);
+        m_item.resize(0);
+        m_close = false;
+        m_cap = capacity;
+        m_size = 0;
+        std::queue<T> newQueue;
+        m_queue.swap(newQueue);
+
+        if (m_cap == CONFLATED) {
+            m_type = conflated;
+            // cold channel
+        } else if (m_cap == 0) {
+            m_type = unbuffered;
+
+            // unbuffer channel
+        } else if (m_cap < 0) {
+            LANE_ASSERT2(false, "init Channel cap < 0");
+            // exception
+        } else {
+            m_type = buffered;
+            // normal buffer channel
+        }
     }
     // no lock
-    uint32_t size() {
+    uint32_t size() noexcept {
         return m_size;
     }
 
 private:
-    FiberSemaphore m_space;
-    FiberSemaphore m_item;
-    std::list<T>   m_list;
-    bool           m_close;
-    uint32_t       m_size;
+    FiberSemaphore                                           m_space;
+    FiberSemaphore                                           m_item;
+    Mutex                                                    m_mu;
+    std::queue<T>                                            m_queue;
+    bool                                                     m_close;
+    uint32_t                                                 m_cap;
+    uint32_t                                                 m_size;
+    u_int8_t                                                 m_type;
+    std::list<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
 };
 
 };  // namespace lane

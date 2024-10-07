@@ -5,6 +5,8 @@
 #include <cstddef>
 
 #include "base/config.h"
+#include "base/log.h"
+#include "base/macro.h"
 #include "base/scheduler.h"
 namespace lane {
 static Logger::ptr           g_logger = LANE_LOG_NAME("system");
@@ -17,7 +19,7 @@ static thread_local Fiber::ptr t_fiber(nullptr);
 
 static ConfigVar<uint32_t>::ptr g_stack_size =
     ConfigVarMgr::GetInstance()->lookUp("fiber.stackSize",
-                                        uint32_t(1024 * 8),
+                                        uint32_t(1024 * 128),
                                         "fiber's stack size");
 
 class Allocator {
@@ -103,8 +105,12 @@ void Fiber::swapIn() {
                     t_fiber->m_state == EXEC);
         SetThis(shared_from_this());
         Scheduler::GetScheRunFiber()->m_state = HOLD;
+        // LANE_LOG_DEBUG(g_logger) << "jump swpa in enter, m_ctx:" << m_ctx;
         auto rt = boost::context::detail::jump_fcontext(m_ctx, this);
         m_ctx = rt.fctx;
+        // LANE_LOG_DEBUG(g_logger) << "jump swpa in exit";
+        // LANE_LOG_DEBUG(g_logger) << "still alive after swapIn()?"
+        //                          << "rt.fctx:" << rt.fctx;
         LANE_ASSERT(Scheduler::GetScheRunFiber() == t_fiber &&
                     t_fiber->m_state == EXEC);
     }
@@ -136,8 +142,13 @@ void Fiber::swapOut() {
         // 临时对象在一行执行完才析构
 
         auto raw_ptr = Scheduler::GetScheRunFiber().get();
+        LANE_ASSERT2(raw_ptr->m_ctx != nullptr, "jump into empty ptr")
+        // LANE_LOG_DEBUG(g_logger)
+        //     << "dead in swap out?"
+        //     << " raw ptr:" << raw_ptr << "raw ptr m_ctx:" << raw_ptr->m_ctx;
+        // LANE_LOG_DEBUG(g_logger) << "jump swpa out enter";
         boost::context::detail::jump_fcontext(raw_ptr->m_ctx, nullptr);
-
+        // LANE_LOG_DEBUG(g_logger) << "jump swpa out exit";
         LANE_ASSERT(Scheduler::GetScheRunFiber() != t_fiber &&
                     Scheduler::GetScheRunFiber()->m_state == HOLD &&
                     t_fiber == shared_from_this());

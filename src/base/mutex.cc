@@ -1,5 +1,9 @@
 #include "base/mutex.h"
 
+#include <sys/types.h>
+
+#include <functional>
+
 #include "base/fiber.h"
 #include "base/iomanager.h"
 #include "base/log.h"
@@ -50,6 +54,10 @@ void Semaphore::post() {
     }
 }
 
+FiberMutex::~FiberMutex() {
+    LANE_ASSERT(m_fs.getSem() == 1);
+}
+
 FiberSemaphore::FiberSemaphore(uint32_t count) : m_sem(count) {}
 FiberSemaphore::~FiberSemaphore() {
     // LANE_ASSERT(m_sem == 0)
@@ -66,10 +74,9 @@ void FiberSemaphore::wait() {
         return;
     } else {                      // 无资源
         LANE_ASSERT(m_sem == 0);  // 不可小于0
-
-        m_waitQueue.push_back(
-            std::make_pair(IOManager::GetThis(), Fiber::GetThis()));
-
+        IOManager* iom = IOManager::GetThis();
+        iom->addBlock();
+        m_waitQueue.push_back(std::make_pair(iom, Fiber::GetThis()));
         // 这里在退出前，记得释放锁，不然就死锁了
         lock.unlock();
         Fiber::YieldToHold();  // 协程转变成Hold状态，等待资源
@@ -78,6 +85,26 @@ void FiberSemaphore::wait() {
         m_sem -= 1;
     }
 
+    return;
+}
+
+void FiberSemaphore::wait(Mutex& m_mutex) {
+
+
+    if (m_sem > 0) {  // 有资源
+        m_sem -= 1;
+        return;
+    } else {
+        LANE_ASSERT(m_sem == 0);
+        IOManager* iom = IOManager::GetThis();
+        iom->addBlock();
+        m_waitQueue.push_back(std::make_pair(iom, Fiber::GetThis()));
+        m_mutex.unlock();
+        Fiber::YieldToHold();
+        m_mutex.lock();
+        LANE_ASSERT(m_sem > 0)
+        m_sem -= 1;
+    }
     return;
 }
 
@@ -110,7 +137,7 @@ bool FiberSemaphore::waitForSeconds(time_t seconds) {
                 iom->schedule(fiber);
             });
         }
-
+        iom->addBlock();
         m_waitQueue.push_back(std::make_pair(iom, fiber));
 
         // 这里在退出前，记得释放锁，不然就死锁了
@@ -133,24 +160,89 @@ bool FiberSemaphore::waitForSeconds(time_t seconds) {
     m_sem -= 1;
     return false;
 }
-void FiberSemaphore::post() {  // 资源增一并从等待队列随机唤醒一个等待的协程
+void FiberSemaphore::post() {
     Mutex::Lock lock(m_mutex);
-    LANE_ASSERT(m_sem >= 0);
+    // LANE_ASSERT(m_sem >= 0);
     m_sem++;
 
-    if (m_waitQueue.empty() == false) {  // 非空
-        std::pair<IOManager*, std::shared_ptr<Fiber>> toWakeup =
-            m_waitQueue.back();
+    if (m_waitQueue.empty() == false) {
+        auto toWakeup = m_waitQueue.front();
 
-        m_waitQueue.pop_back();
+        m_waitQueue.pop_front();
         toWakeup.first->schedule(toWakeup.second);
+        toWakeup.first->delBlock();
     }
 
     return;
 }
+
+void FiberSemaphore::post(Mutex& m_mutex) {
+    // LANE_ASSERT(m_sem >= 0);
+    m_sem++;
+
+    if (m_waitQueue.empty() == false) {
+        auto toWakeup = m_waitQueue.front();
+
+        m_waitQueue.pop_front();
+        toWakeup.first->schedule(toWakeup.second);
+        toWakeup.first->delBlock();
+    }
+
+    return;
+}
+
 int8_t FiberSemaphore::getSem() {
     Mutex::Lock lock(m_mutex);
 
     return m_sem;
 }
+
+void FiberSemaphore::reset() {
+    Mutex::Lock lock(m_mutex);
+    m_sem = 0;
+    while (!m_waitQueue.empty()) {  //全部唤醒
+        auto toWakeup = m_waitQueue.front();
+
+        m_waitQueue.pop_front();
+        toWakeup.first->schedule(toWakeup.second);
+        toWakeup.first->delBlock();
+    }
+}
+
+void FiberSemaphore::resize(int8_t size) {
+
+    Mutex::Lock lock(m_mutex);
+    m_sem = size;
+    while (!m_waitQueue.empty()) {  //全部唤醒
+        auto toWakeup = m_waitQueue.front();
+
+        m_waitQueue.pop_front();
+        toWakeup.first->schedule(toWakeup.second);
+        toWakeup.first->delBlock();
+    }
+}
+
+
+// FiberCondition::FiberCondition() : m_sem(0) {}
+// FiberCondition::~FiberCondition() {}
+
+// void FiberCondition::wait(ScopedLockImpl<FiberMutex>& Lock,
+//                           std::function<bool(void)>   cb) {
+//     m_cb = cb;
+//     while (true) {
+//         {  // lock
+//             if (cb()) {
+//                 break;
+//             } else {
+//                 m_waitQueue.emplace(IOManager::GetThis(), Fiber::GetThis());
+//                 Lock.unlock();
+//                 Fiber::YieldToHold();
+//             }
+//         }
+//     }
+// }
+// bool FiberCondition::notify() {
+
+// }
+// bool FiberCondition::notify_all() {}
 }  // namespace lane

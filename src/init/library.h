@@ -1,6 +1,6 @@
 /*******************************************
  * Author : Lane
- * Email: : 1981811204@qq.com
+ * Email: : 1657015850@qq.com
  * CreateTime : 2023-03-05 10:32
  * LastModified : 2023-03-05 10:32
  * Filename : library.h
@@ -16,10 +16,10 @@
 
 namespace lane {
 
-    class Library {
-       public:
-        static Module::ptr GetModule(const std::string& path);
-    };
+class Library {
+public:
+    static Module::ptr GetModule(const std::string& path);
+};
 
 }  // namespace lane
 

@@ -1,6 +1,6 @@
 /*******************************************
  * Author : Lane
- * Email: : 1981811204@qq.com
+ * Email: : 1657015850@qq.com
  * CreateTime : 2023-02-05 16:30
  * LastModified : 2023-02-05 16:30
  * Filename : iomanager.h
@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <random>
@@ -66,6 +67,12 @@ public:
     int  cancelEvent(int fd, Event event);
     int  cancelAll(int fd);
     int  getfdEvent(int fd);
+    void addBlock() {
+        ++m_blockFiber;
+    }
+    void delBlock() {
+        --m_blockFiber;
+    }
 
 public:
     virtual bool isStoped() override;
@@ -84,6 +91,7 @@ private:
     MutexType                  m_mutex;
     std::random_device         m_rd;
     std::default_random_engine m_re;
+    std::atomic<int32_t>       m_blockFiber = {0};
 };
 }  // namespace lane
 

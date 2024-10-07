@@ -3,6 +3,9 @@
 #include <cstddef>
 
 #include "base/hook.h"
+#include "base/log.h"
+#include "base/mutex.h"
+#include "base/thread.h"
 namespace lane {
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
 // 执行run方法的协程
@@ -182,6 +185,12 @@ void Scheduler::run() {
             if (idleFi->getState() == Fiber::TERM ||
                 idleFi->getState() == Fiber::EXCE) {
                 // 空闲处理都结束，说明协程调度器结束。
+                if (idleFi->getState() == Fiber::TERM) {
+                    LANE_LOG_DEBUG(g_logger) << "TERM thread exit";
+                }
+                if (idleFi->getState() == Fiber::EXCE) {
+                    LANE_LOG_DEBUG(g_logger) << "EXCE thread exit";
+                }
                 break;
             }
         }
@@ -222,17 +231,23 @@ void Scheduler::run() {
             }
         }
     }
+    LANE_LOG_DEBUG(g_logger) << "thread exit";
     Thread::DeleteLocalQueue();
     t_scheduler = nullptr;
+    t_shceRunFiber = nullptr;
     set_hook_enable(false);
 }
 
 bool Scheduler::isStoped() {
     MutexType::Lock lock(m_mutex);
-    // LANE_LOG_DEBUG(g_logger) << "m_stop:" << m_stop<< "
-    // m_mainQueue.empty():" << m_mainQueue.empty() << "
-    // m_activeThreadCount:" << m_activeThreadCount;
-    return m_stop && m_mainQueue.empty() && m_activeThreadCount == 0;
+    // LANE_LOG_DEBUG(g_logger)
+    //     << "m_stop: " << m_stop
+    //     << " m_mainQueue.empty(): " << m_mainQueue.empty()
+    //     << " m_activeThreadCount: " << (m_activeThreadCount == 0)
+    //     << " (!t_queue || t_queue->empty()): "
+    //     << (!t_queue || t_queue->empty());
+    return m_stop && m_mainQueue.empty() && Thread::GetLocalQueue()->empty() &&
+           m_activeThreadCount == 0;
 }
 void Scheduler::idle() {
     while (!isStoped()) {

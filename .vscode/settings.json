@@ -1,0 +1,5 @@
+{
+    "cmake.ctest.parallelJobs": 10,
+    "clang-format.executable": "clang-format",
+    "clangd.path": "clangd",
+}

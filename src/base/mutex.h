@@ -1,6 +1,6 @@
 /*******************************************
  * Author : Lane
- * Email: : 1981811204@qq.com
+ * Email: : 1657015850@qq.com
  * CreateTime : 2023-01-30 16:46
  * LastModified : 2023-01-30 16:46
  * Filename : mutex.h
@@ -13,7 +13,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdint.h>
-#include <string.h>
 
 #include <cassert>
 #include <list>
@@ -142,31 +141,6 @@ private:
     pthread_mutex_t m_mutex;
 };
 
-class QSpinlock : Noncopyable {
-public:
-    typedef ScopedLockImpl<QSpinlock> Lock;
-
-public:
-    QSpinlock() {
-        assert(pthread_spin_init(&m_spinlock, PTHREAD_PROCESS_PRIVATE) == 0);
-    }
-
-    ~QSpinlock() {
-        assert(pthread_spin_destroy(&m_spinlock) == 0);
-    }
-
-    void lock() {
-        assert(pthread_spin_lock(&m_spinlock) == 0);
-    }
-
-    void unlock() {
-        assert(pthread_spin_unlock(&m_spinlock) == 0);
-    }
-
-private:
-    pthread_spinlock_t m_spinlock;
-};
-
 class RWMutex : Noncopyable {
 public:
     typedef ReadScopedLockImpl<RWMutex>  ReadLock;
@@ -195,20 +169,18 @@ private:
     pthread_rwlock_t m_rwMutex;
 };
 
-
 class FiberSemaphore : Noncopyable {
 public:
     FiberSemaphore(uint32_t count = 0);
     ~FiberSemaphore();
     void   wait();
+    void   wait(Mutex& mu);
     bool   waitForSeconds(time_t seconds);
     void   post();
+    void   post(Mutex& mu);
     int8_t getSem();
-    void   reset() {
-          Mutex::Lock lock(m_mutex);
-
-          m_sem = 0;
-    }
+    void   reset();
+    void   resize(int8_t size);
 
 private:
     std::list<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
@@ -221,20 +193,32 @@ public:
     typedef ScopedLockImpl<FiberMutex> Lock;
 
     FiberMutex() : m_fs(1) {}
-    ~FiberMutex() {
-        assert(m_fs.getSem() == 1);
-    }
+    ~FiberMutex();
     void lock() {
         m_fs.wait();
     }
     void unlock() {
-        assert(m_fs.getSem() == 0);
+        assert(m_fs.getSem() <= 0);
         m_fs.post();
     }
 
 private:
     FiberSemaphore m_fs;
 };
+
+
+// class FiberCondition : Noncopyable {
+// public:
+//     FiberCondition();
+//     ~FiberCondition();
+//     void wait(ScopedLockImpl<FiberMutex>& Lock, std::function<bool(void)>
+//     cb); bool notify(); bool notify_all();
+
+// private:
+//     std::queue<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
+//     int8_t                                                    m_sem;
+//     std::function<bool(void)>                                 m_cb;
+// };
 
 }  // namespace lane
 

@@ -2,7 +2,6 @@ build/
 
 *.log
 
-.vscode/
 
 bin/
 
@@ -17,5 +16,7 @@ doc/
 *.a
 
 lib/
+
+*lib/
 
 pkg/

@@ -1,10 +1,10 @@
 #pragma once
 
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <vector>
 
-#include "base/mutex.h"
 namespace lane {
 
 template <typename T>
@@ -12,19 +12,53 @@ class WorkStealQueue {
 public:
     WorkStealQueue() {}
 
-
-    void push_front(T& item) {
-        MutexType::Lock lock(m_mutex);
+    void push_front(T item) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_queue.push_front(item);
     }
 
-    void push_back(T& item) {
-        MutexType::Lock lock(m_mutex);
+    void push_back(T item) {
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_queue.push_back(item);
     }
 
+    bool push_back_if_empty(T item) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_queue.size() == 0) {
+            m_queue.push_back(item);
+            return true;
+        }
+        return false;
+    }
+
+    T pop_front() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        auto out = m_queue.front();
+        m_queue.pop_front();
+        return out;
+    }
+
+    T pop_back() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        auto out = m_queue.back();
+        m_queue.pop_back();
+        return out;
+    }
+
+    T front() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_queue.front();
+    }
+
+    T back() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_queue.back();
+    }
+
     bool empty() const {
-        MutexType::Lock lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return m_queue.empty();
     }
 
@@ -33,13 +67,13 @@ public:
     }
 
     void clear() {
-        MutexType::Lock lock(m_mutex);
-        auto            tmp = std::deque<T>();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto                        tmp = std::deque<T>();
         m_queue.swap(tmp);
     }
 
     bool try_pop(T& out) {
-        MutexType::Lock lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {
             return false;
         }
@@ -49,9 +83,9 @@ public:
     }
 
     std::shared_ptr<T> try_pop() {
-        MutexType::Lock lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {
-            return std::shared_ptr<T>();
+            return nullptr;
         }
         std::shared_ptr<T> out(std::make_shared<T>(std::move(m_queue.front())));
         m_queue.pop_front();
@@ -59,7 +93,7 @@ public:
     }
 
     bool try_steal(T& out) {
-        MutexType::Lock lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {
             return false;
         }
@@ -69,21 +103,20 @@ public:
     }
 
     bool try_steal(std::vector<T>& outVec) {
-        MutexType::Lock lock(m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {
             return false;
         }
-        for (int i = 0; i < m_queue.size() / 2; ++i) {
-            outVec.push_back(std::move(m_queue.back()));
+        for (long unsigned int i = 0; i < (m_queue.size() + 1) / 2; ++i) {
+            outVec.push_back(m_queue.back());
             m_queue.pop_back();
         }
         return outVec.size();
     }
 
 private:
-    using MutexType = QSpinlock;
-    std::deque<T>     m_queue;
-    mutable MutexType m_mutex;
+    std::deque<T>      m_queue;
+    mutable std::mutex m_mutex;
 };
 
 }  // namespace lane
