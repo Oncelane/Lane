@@ -19,7 +19,7 @@ static thread_local Fiber::ptr t_fiber(nullptr);
 
 static ConfigVar<uint32_t>::ptr g_stack_size =
     ConfigVarMgr::GetInstance()->lookUp("fiber.stackSize",
-                                        uint32_t(1024 * 16),
+                                        uint32_t(1024 * 128),
                                         "fiber's stack size");
 
 class Allocator {

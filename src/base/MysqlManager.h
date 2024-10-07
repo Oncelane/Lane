@@ -9,14 +9,15 @@
 
 namespace lane {
 class MysqlManager {
+public:
+    const char* m_host = "127.0.0.1";         //主机名
+    const char* m_user = "debian-sys-maint";  //用户名
+    const char* m_pwd = "QTLVb6BaeeaJsFMT";   //密码
+    const char* m_database_name = "yourdb";   //数据库名称
+    int         m_port = 3306;                //端口号
 private:
     std::queue<MYSQL*> m_freeSqls;
     Mutex              m_mu;
-    const char*        host = "127.0.0.1";         //主机名
-    const char*        user = "debian-sys-maint";  //用户名
-    const char*        pwd = "QTLVb6BaeeaJsFMT";   //密码
-    const char*        database_name = "yourdb";   //数据库名称
-    int                port = 3306;                //端口号
 
 
     MYSQL* createSql() {
@@ -30,7 +31,7 @@ private:
                       << std::endl;
         }
         sql = mysql_real_connect(
-            sql, host, user, pwd, database_name, port, nullptr, 0);
+            sql, m_host, m_user, m_pwd, m_database_name, m_port, nullptr, 0);
 
         if (!sql) {
             std::cout << "MySql Connect error!" << mysql_error(sql)
