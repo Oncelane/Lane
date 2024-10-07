@@ -91,7 +91,7 @@ private:
     MutexType                  m_mutex;
     std::random_device         m_rd;
     std::default_random_engine m_re;
-    std::atomic<uint32_t>      m_blockFiber = {0};
+    std::atomic<int32_t>       m_blockFiber = {0};
 };
 }  // namespace lane
 

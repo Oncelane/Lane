@@ -20,7 +20,7 @@ public:
     void done();
 
 private:
-    using MutexType = FiberMutex;
+    using MutexType = Mutex;
     std::queue<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
     uint                                                      m_sem;
     MutexType                                                 m_mutex;  // 因为需要对std::list进行增删查改，所以必须用互斥锁

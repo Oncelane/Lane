@@ -11,14 +11,14 @@ int iterations = 10000;
 
 void TestMain() {
     // auto rwLock = new lane::FiberRWMutex;
-    auto lock = new lane::FiberMutex;
-    // auto lock = new lane::Mutex;
+    // auto lock = new lane::FiberMutex;
+    auto lock = new lane::Mutex;
     auto wait = new lane::WaitGroup;
     auto data = 0;
 
     // 启动 numWrites 个写协程
+    wait->add(numWriters);
     for (int i = 0; i < numWriters; ++i) {
-        wait->add(1);
         lane::IOManager::GetThis()->addTask([=, &data]() {
             for (int i = 0; i < iterations; ++i) {
                 // rwLock->lock();
@@ -33,8 +33,8 @@ void TestMain() {
     }
 
     // 启动 numReaders 个读协程
+    wait->add(numReaders);
     for (int i = 0; i < numReaders; ++i) {
-        wait->add(1);
         lane::IOManager::GetThis()->addTask([=]() {
             for (int i = 0; i < iterations; ++i) {
                 // rwLock->rLock();
