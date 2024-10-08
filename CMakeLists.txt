@@ -42,11 +42,15 @@ file(GLOB_RECURSE SRC_LIST
 endfunction()
 
 message(STATUS "-----SRC_LIST:${SRC_LIST}-----LIB_LIST:${LIB_LIST}---YAML-CPP:${yaml}")
-add_compile_options(-std=c++17 -Wall -g -O2)
+add_compile_options(-std=c++17 -Wall -fsanitize=address -g -O0)
 
 set (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 add_library (laneLib STATIC ${SRC_LIST})
 force_redefine_file_macro_for_sources(laneLib)
+
+# 为 laneLib 设置 AddressSanitizer
+set_target_properties(laneLib PROPERTIES LINK_FLAGS "-fsanitize=address")
+
 # set_target_properties (laneLib PROPERTIES OUTPUT_NAME "laneLib")
 target_link_libraries(laneLib Boost::context ${LIB_LIST} yaml-cpp   mysqlclient)
 
@@ -60,6 +64,10 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
     # 创建可执行文件
     add_executable(${TEST_NAME} ${TEST_SOURCE})
     force_redefine_file_macro_for_sources(${TEST_NAME}) #__FILE__
+
+ # 为测试可执行文件设置 AddressSanitizer
+ set_target_properties(${TEST_NAME} PROPERTIES LINK_FLAGS "-fsanitize=address")
+
     # 链接库
     target_link_libraries(${TEST_NAME} laneLib)
 endforeach()
