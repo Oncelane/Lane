@@ -203,7 +203,7 @@ private:
     MutexType  m_mutex;
 
 public:
-    std::unordered_map<pid_t, lane::WorkStealQueue<FiberAndThread>*>
+    std::unordered_map<pid_t, lane::WorkStealQueue<FiberAndThread>::ptr>
         m_subQueuesmap;
 };
 }  // namespace lane

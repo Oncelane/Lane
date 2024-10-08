@@ -232,7 +232,6 @@ void Scheduler::run() {
         }
     }
     LANE_LOG_DEBUG(g_logger) << "thread exit";
-    Thread::DeleteLocalQueue();
     t_scheduler = nullptr;
     t_shceRunFiber = nullptr;
     set_hook_enable(false);
@@ -246,7 +245,7 @@ bool Scheduler::isStoped() {
     //     << " m_activeThreadCount: " << (m_activeThreadCount == 0)
     //     << " (!t_queue || t_queue->empty()): "
     //     << (!t_queue || t_queue->empty());
-    return m_stop && m_mainQueue.empty() && Thread::GetLocalQueue()->empty() &&
+    return m_stop && m_mainQueue.empty() && (!t_queue || t_queue->empty()) &&
            m_activeThreadCount == 0;
 }
 void Scheduler::idle() {

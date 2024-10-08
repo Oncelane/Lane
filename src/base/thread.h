@@ -50,9 +50,9 @@ public:
         return m_pthread;
     }
 
-    static void                                  InitLocalQueue();
-    static lane::WorkStealQueue<FiberAndThread>* GetLocalQueue();
-    static void                                  DeleteLocalQueue();
+    static void                                      InitLocalQueue();
+    static lane::WorkStealQueue<FiberAndThread>::ptr GetLocalQueue();
+    static void                                      DeleteLocalQueue();
 
 private:
     void setDefaultName();

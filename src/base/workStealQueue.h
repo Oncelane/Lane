@@ -10,6 +10,7 @@ namespace lane {
 template <typename T>
 class WorkStealQueue {
 public:
+    using ptr = std::shared_ptr<WorkStealQueue<T>>;
     WorkStealQueue() {}
 
     void push_front(T item) {

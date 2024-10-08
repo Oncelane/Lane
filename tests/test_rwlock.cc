@@ -4,22 +4,22 @@
 #include "base/log.h"
 #include "base/mutex.h"
 #include "base/waitGroup.h"
-int numReaders = 100;
-int numWriters = 100;
-int iterations = 10000;
-
+int  numReaders = 100;
+int  numWriters = 100;
+int  iterations = 10000;
+auto lock = new lane::Mutex;
+auto wait = new lane::WaitGroup;
+auto data = 0;
 
 void TestMain() {
     // auto rwLock = new lane::FiberRWMutex;
     // auto lock = new lane::FiberMutex;
-    auto lock = new lane::Mutex;
-    auto wait = new lane::WaitGroup;
-    auto data = 0;
+
 
     // 启动 numWrites 个写协程
     wait->add(numWriters);
     for (int i = 0; i < numWriters; ++i) {
-        lane::IOManager::GetThis()->addTask([=, &data]() {
+        lane::IOManager::GetThis()->addTask([]() {
             for (int i = 0; i < iterations; ++i) {
                 // rwLock->lock();
                 lock->lock();
@@ -35,7 +35,7 @@ void TestMain() {
     // 启动 numReaders 个读协程
     wait->add(numReaders);
     for (int i = 0; i < numReaders; ++i) {
-        lane::IOManager::GetThis()->addTask([=]() {
+        lane::IOManager::GetThis()->addTask([]() {
             for (int i = 0; i < iterations; ++i) {
                 // rwLock->rLock();
                 // LANE_LOG_INFO(LANE_LOG_ROOT()) << data;
@@ -58,10 +58,12 @@ void TestMain() {
 
 int main() {
 
-    lane::IOManager iom(4, "rwlock", false);
-    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::FATAL);
-    iom.addTask(TestMain);
-    // std::cin.get();
+    {
+        lane::IOManager iom(4, "rwlock", true);
+        LANE_LOG_NAME("system")->setLevel(lane::LogLevel::FATAL);
+        iom.addTask(TestMain);
+    }
+    LANE_LOG_INFO(LANE_LOG_ROOT()) << "test finish";
 
     return 0;
 }

@@ -8,7 +8,7 @@
 #include "workStealQueue.h"
 
 namespace lane {
-static thread_local lane::WorkStealQueue<FiberAndThread>* t_queue = nullptr;
+static thread_local lane::WorkStealQueue<FiberAndThread>::ptr t_queue = nullptr;
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
 // 线程对象生命周期可能和线程本身生命周期不同，所以不推荐每个线程用线程全局变量保存线程对象的地址，智能指针不能泛滥使用!!!
 //  static thread_local Thread* t_thread = nullptr;
@@ -45,7 +45,7 @@ pid_t Thread::GetTid() {
     }
     return t_thread_pid;
 }
-lane::WorkStealQueue<FiberAndThread>* Thread::GetLocalQueue() {
+lane::WorkStealQueue<FiberAndThread>::ptr Thread::GetLocalQueue() {
     return t_queue;
 }
 void Thread::join() {
@@ -85,20 +85,16 @@ void Thread::setDefaultName() {
     }
 }
 void Thread::InitLocalQueue() {
-    lane::WorkStealQueue<FiberAndThread>* a =
-        new lane::WorkStealQueue<FiberAndThread>();
-    t_queue = a;
+
+    t_queue.reset(new lane::WorkStealQueue<FiberAndThread>());
     if (Scheduler* sch = lane::Scheduler::GetThis()) {
         // LANE_LOG_DEBUG(g_logger)
         //     << "t_queue get ready pid: " << Thread::GetTid()
         //     << " addrs :" << t_queue;
-        sch->m_subQueuesmap[Thread::GetTid()] = a;
+        sch->m_subQueuesmap[Thread::GetTid()] = t_queue;
     }
 }
 
-void Thread::DeleteLocalQueue() {
-    delete t_queue;
-}
 void* Thread::Main(void* arg) {
     Thread*     thread = ((Thread*)arg);
     std::string threadName;
