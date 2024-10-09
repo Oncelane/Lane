@@ -13,7 +13,7 @@ static thread_local Fiber::ptr t_shceRunFiber(nullptr);
 
 static thread_local Scheduler* t_scheduler = nullptr;
 
-thread_local lane::WorkStealQueue<FiberAndThread>* t_queue = nullptr;
+// thread_local lane::WorkStealQueue<FiberAndThread>* t_queue = nullptr;
 
 Scheduler::Scheduler(uint32_t threadCount, const std::string& name, bool useCur)
     : m_name(name), m_stop(true) {
@@ -232,8 +232,8 @@ void Scheduler::run() {
         }
     }
     LANE_LOG_DEBUG(g_logger) << "thread exit";
-    t_scheduler = nullptr;
-    t_shceRunFiber = nullptr;
+    // t_scheduler = nullptr;
+    // t_shceRunFiber = nullptr;
     set_hook_enable(false);
 }
 
@@ -245,7 +245,8 @@ bool Scheduler::isStoped() {
     //     << " m_activeThreadCount: " << (m_activeThreadCount == 0)
     //     << " (!t_queue || t_queue->empty()): "
     //     << (!t_queue || t_queue->empty());
-    return m_stop && m_mainQueue.empty() && (!t_queue || t_queue->empty()) &&
+    return m_stop && m_mainQueue.empty() &&
+           (!Thread::GetLocalQueue() || Thread::GetLocalQueue()->empty()) &&
            m_activeThreadCount == 0;
 }
 void Scheduler::idle() {

@@ -23,6 +23,7 @@ public:
         buffered,
     };
     static const uint32_t CONFLATED = -1;
+    Channel() = delete;
     Channel(uint32_t capacity)
         : m_space(capacity)
         , m_item(0)
@@ -129,15 +130,11 @@ public:
                     m_queue.push(in);
                     ++m_size;
                     m_item.post(m_mu);
-                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
-                        << "stuck in m_space(first)";
+
                     m_space.wait(m_mu);
-                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
                 } else {
-                    LANE_LOG_DEBUG(LANE_LOG_ROOT())
-                        << "stuck in m_space(second)";
                     m_space.wait(m_mu);
-                    LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "awake from m_space";
+
                     if (m_close) {
 
                         return false;

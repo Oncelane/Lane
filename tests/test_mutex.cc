@@ -7,7 +7,7 @@
 #include "base/mutex.h"
 static lane::Logger::ptr g_logger = LANE_LOG_NAME("system");
 static int               data = 0;
-static int               num = 100000;
+static int               num = 1000;
 class FiberSemCallBack {
 public:
     FiberSemCallBack() {
@@ -47,8 +47,8 @@ static FiberSemCallBack fsc;
 
 int main() {
     {
-        // g_logger->setLevel(lane::LogLevel::INFO);
-        lane::IOManager iom(4, "test_mutex", true);
+        g_logger->setLevel(lane::LogLevel::FATAL);
+        lane::IOManager iom(4, "test_mutex", false);
         // iom.addTask(std::bind(
         //     (void(FiberSemCallBack::*)(void)) & FiberSemCallBack::waitCB,
         //     &fsc));
@@ -67,6 +67,6 @@ int main() {
             (void (FiberSemCallBack::*)(void)) & FiberSemCallBack::producer,
             &fsc));
     }
-    LANE_LOG_DEBUG(g_logger) << data;
+    LANE_LOG_FATAL(g_logger) << data;
     return 0;
 }

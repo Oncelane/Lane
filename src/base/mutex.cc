@@ -67,45 +67,36 @@ FiberSemaphore::~FiberSemaphore() {
 // 2、有就将资源减一并返回，没有就将当前协程放入等待队列，待资源被补充后唤醒
 // 3、待解决的问题：如何让调度器感知，有协程在等待信号量，从而解决协程调度器忽略掉那些在等待信号量的协程而提前退出的bug
 void FiberSemaphore::wait() {
-    Mutex::Lock lock(m_mutex);
-
-    if (m_sem > 0) {  // 有资源
-        m_sem -= 1;
-        return;
-    } else {                      // 无资源
-        LANE_ASSERT(m_sem == 0);  // 不可小于0
-        IOManager* iom = IOManager::GetThis();
-        iom->addBlock();
-        m_waitQueue.push_back(std::make_pair(iom, Fiber::GetThis()));
-        // 这里在退出前，记得释放锁，不然就死锁了
-        lock.unlock();
-        Fiber::YieldToHold();  // 协程转变成Hold状态，等待资源
-        lock.lock();
-        LANE_ASSERT(m_sem > 0)
-        m_sem -= 1;
+    {
+        Mutex::Lock lock(m_mutex);
+        --m_sem;
+        LANE_LOG_DEBUG(g_logger) << "m_sem--" << m_sem;
+        if (m_sem >= 0) {  // 有资源
+            return;
+        } else {
+            IOManager* iom = IOManager::GetThis();
+            iom->addBlock();
+            m_waitQueue.emplace(iom, Fiber::GetThis());
+        }
     }
-
-    return;
+    Fiber::YieldToHold();  // 协程转变成Hold状态，等待资源
 }
 
 void FiberSemaphore::wait(Mutex& m_mutex) {
 
 
-    if (m_sem > 0) {  // 有资源
-        m_sem -= 1;
+    --m_sem;
+    LANE_LOG_DEBUG(g_logger) << "m_sem--" << m_sem;
+    if (m_sem >= 0) {  // 有资源
         return;
     } else {
-        LANE_ASSERT(m_sem == 0);
         IOManager* iom = IOManager::GetThis();
         iom->addBlock();
-        m_waitQueue.push_back(std::make_pair(iom, Fiber::GetThis()));
-        m_mutex.unlock();
-        Fiber::YieldToHold();
-        m_mutex.lock();
-        LANE_ASSERT(m_sem > 0)
-        m_sem -= 1;
+        m_waitQueue.emplace(iom, Fiber::GetThis());
     }
-    return;
+    m_mutex.unlock();
+    Fiber::YieldToHold();  // 协程转变成Hold状态，等待资源
+    m_mutex.lock();
 }
 
 // 这里操作逻辑和wait类似，但是唤醒的方式有两种，一是通过其他协程调用post、二是通过定时器超时的回调函数。
@@ -134,11 +125,11 @@ bool FiberSemaphore::waitForSeconds(time_t seconds) {
                     return;
                 }
                 *t = ETIMEDOUT;
-                iom->schedule(fiber);
+                iom->addTask(fiber);
             });
         }
         iom->addBlock();
-        m_waitQueue.push_back(std::make_pair(iom, fiber));
+        m_waitQueue.push(std::make_pair(iom, fiber));
 
         // 这里在退出前，记得释放锁，不然就死锁了
         lock.unlock();
@@ -164,12 +155,12 @@ void FiberSemaphore::post() {
     Mutex::Lock lock(m_mutex);
     // LANE_ASSERT(m_sem >= 0);
     m_sem++;
-
+    LANE_LOG_DEBUG(g_logger) << "m_sem++" << m_sem;
     if (m_waitQueue.empty() == false) {
         auto toWakeup = m_waitQueue.front();
 
-        m_waitQueue.pop_front();
-        toWakeup.first->schedule(toWakeup.second);
+        m_waitQueue.pop();
+        toWakeup.first->addTask(toWakeup.second);
         toWakeup.first->delBlock();
     }
 
@@ -183,17 +174,16 @@ void FiberSemaphore::post(Mutex& m_mutex) {
     if (m_waitQueue.empty() == false) {
         auto toWakeup = m_waitQueue.front();
 
-        m_waitQueue.pop_front();
-        toWakeup.first->schedule(toWakeup.second);
+        m_waitQueue.pop();
+        toWakeup.first->addTask(toWakeup.second);
         toWakeup.first->delBlock();
     }
 
     return;
 }
 
-int8_t FiberSemaphore::getSem() {
+int32_t FiberSemaphore::getSem() {
     Mutex::Lock lock(m_mutex);
-
     return m_sem;
 }
 
@@ -203,21 +193,21 @@ void FiberSemaphore::reset() {
     while (!m_waitQueue.empty()) {  //全部唤醒
         auto toWakeup = m_waitQueue.front();
 
-        m_waitQueue.pop_front();
-        toWakeup.first->schedule(toWakeup.second);
+        m_waitQueue.pop();
+        toWakeup.first->addTask(toWakeup.second);
         toWakeup.first->delBlock();
     }
 }
 
-void FiberSemaphore::resize(int8_t size) {
+void FiberSemaphore::resize(int32_t size) {
 
     Mutex::Lock lock(m_mutex);
     m_sem = size;
     while (!m_waitQueue.empty()) {  //全部唤醒
         auto toWakeup = m_waitQueue.front();
 
-        m_waitQueue.pop_front();
-        toWakeup.first->schedule(toWakeup.second);
+        m_waitQueue.pop();
+        toWakeup.first->addTask(toWakeup.second);
         toWakeup.first->delBlock();
     }
 }

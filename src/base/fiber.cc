@@ -3,8 +3,13 @@
 #include <boost/context/detail/fcontext.hpp>
 #include <boost/context/detail/index_sequence.hpp>
 #include <cstddef>
+#include <exception>
+#include <optional>
+#include <stdexcept>
+#include <string>
 
 #include "base/config.h"
+#include "base/laneGo.h"
 #include "base/log.h"
 #include "base/macro.h"
 #include "base/scheduler.h"
@@ -16,6 +21,8 @@ static std::atomic<uint32_t> s_fiber_count = {0};
 static thread_local Fiber::ptr t_threadFiber(nullptr);
 // 当前执行的协程
 static thread_local Fiber::ptr t_fiber(nullptr);
+// before协程 用于 defer恢复
+static thread_local Fiber::ptr t_before(nullptr);
 
 static ConfigVar<uint32_t>::ptr g_stack_size =
     ConfigVarMgr::GetInstance()->lookUp("fiber.stackSize",
@@ -37,7 +44,11 @@ public:
 // *****************Fiber**************
 
 Fiber::Fiber(CallBackType cb, bool withThread, uint32_t stackSize)
-    : m_cb(cb), m_withThread(withThread) {
+    : m_cb(cb)
+    , m_defer(nullptr)
+    , m_withThread(withThread)
+    , m_panic(false)
+    , m_defer_panic(false) {
     // lane::Fiber::GetThis();
     s_fiber_count++;
     m_id = s_fiber_id++;
@@ -53,7 +64,7 @@ Fiber::Fiber(CallBackType cb, bool withThread, uint32_t stackSize)
 
     // LANE_LOG_DEBUG(g_logger) << "Fiber::Fiber(...)id=" << m_id;
 }
-Fiber::Fiber() {
+Fiber::Fiber() : m_defer(nullptr), m_panic(false), m_defer_panic(false) {
     s_fiber_count++;
     m_id = s_fiber_id++;
     m_state = INIT;
@@ -65,7 +76,8 @@ Fiber::Fiber() {
 }
 Fiber::~Fiber() {
     if (m_stackPtr) {
-        LANE_ASSERT(m_state == TERM || m_state == EXCE || m_state == INIT);
+        LANE_ASSERT2(m_state == TERM || m_state == EXCE || m_state == INIT,
+                     "m_state=" + std::to_string(m_state));
         Allocator::Dealloc(m_stackPtr, m_stackSize);
     }
     if (t_fiber.get() == this) {
@@ -112,16 +124,37 @@ void Fiber::swapIn() {
         // LANE_LOG_DEBUG(g_logger) << "still alive after swapIn()?"
         //                          << "rt.fctx:" << rt.fctx;
         LANE_ASSERT(Scheduler::GetScheRunFiber() == t_fiber &&
-                    t_fiber->m_state == EXEC);
+                    (t_fiber->m_state == EXEC || t_fiber->m_state == EXCE));
     }
 
-    LANE_ASSERT(m_state == HOLD || m_state == READY || m_state == TERM ||
-                m_state == EXCE);
+    // panic中设置m_state EXCE / m_panic = true / m_panic_str = XX
+    if (m_state == EXCE) {
+        // 跟 catch 中的流程一样，然后recovery可以获取这里的exection
+        while (m_defer != nullptr) {
+            m_defer->cb();
+            m_defer = m_defer->next;
+            // 如果cb中调用了recovery 会将m_panic
+            // 置false，因此就可以恢复swapIn执行
+            if (!m_panic) {
+                // 是Excution 不是 Excetion
+                m_state = READY;
+                break;
+            }
+        }
+        // 如果没有捕获，则抛出exection
+        if (m_panic && !m_exections.empty()) {
+            throw m_exections.front();
+        }
+    }
+
+    LANE_ASSERT2(m_state == HOLD || m_state == READY || m_state == TERM ||
+                     m_state == EXCE,
+                 "m_state=" + std::to_string(m_state));
 }
 void Fiber::swapOut() {
     // m_state == HOLD || m_state == READY || m_state == TERM || m_state ==
     // EXCE
-    LANE_ASSERT(m_state != EXEC && m_state != INIT);
+    LANE_ASSERT2(m_state != INIT, "m_state=" + std::to_string(m_state));
     if (m_withThread) {
         LANE_ASSERT(t_threadFiber != t_fiber &&
                     t_threadFiber->m_state == HOLD &&
@@ -171,16 +204,28 @@ void Fiber::MainFun(boost::context::detail::transfer_t in) {
 
     try {
         raw_ptr->m_cb();
-
         raw_ptr->m_state = TERM;
     } catch (std::exception& e) {
         LANE_LOG_ERROR(g_logger) << "Fiber::MainFun() : exception:" << e.what();
         raw_ptr->m_state = EXCE;
+
+        raw_ptr->m_panic = true;
+        raw_ptr->m_exections.push_back(e);
+        while (raw_ptr->m_defer != nullptr) {
+            raw_ptr->m_defer->cb();
+            raw_ptr->m_defer = raw_ptr->m_defer->next;
+        }
+        if (raw_ptr->m_panic) {
+            throw e;
+        }
     } catch (...) {
         LANE_LOG_ERROR(g_logger) << "Fiber::MainFun() : unknow exception。";
         raw_ptr->m_state = EXCE;
     }
-
+    while (raw_ptr->m_defer != nullptr) {
+        raw_ptr->m_defer->cb();
+        raw_ptr->m_defer = raw_ptr->m_defer->next;
+    }
     raw_ptr->swapOut();
 
     LANE_ASSERT2(false,
@@ -214,12 +259,43 @@ Fiber::ptr Fiber::GetThis() {
     SetThis(mainFiber);
     return t_fiber;
 }
+
+Fiber::ptr Fiber::GetBefore() {
+    return t_before;
+}
+
 void Fiber::SetThis(Fiber::ptr fiberPtr) {
     LANE_ASSERT(fiberPtr != nullptr &&
                 (fiberPtr->m_state == INIT || fiberPtr->m_state == HOLD ||
                  fiberPtr->m_state == READY));
     t_fiber = fiberPtr;
     fiberPtr->m_state = EXEC;
+}
+
+void Fiber::_defer(std::function<void()> cb) {
+    auto node = new struct Defer;
+    node->cb = cb;
+    node->next = m_defer;
+    m_defer = node;
+}
+
+std::optional<std::exception> Fiber::_recovery() {
+    if (GetBefore() && !GetBefore()->m_exections.empty()) {
+        auto rt = m_exections.front();
+        m_exections.pop_front();
+        t_before->m_panic = false;
+        return rt;
+    }
+    return std::nullopt;
+}
+
+void Fiber::_panic(std::exception e) {
+    t_before = GetThis();
+    auto raw_ptr = GetThis().get();
+    raw_ptr->m_state = EXCE;
+    raw_ptr->m_panic = true;
+    raw_ptr->m_exections.push_back(e);
+    raw_ptr->swapOut();
 }
 
 uint32_t Fiber::GetFiberId() {

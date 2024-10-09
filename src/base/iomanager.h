@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "base/fiber.h"
+#include "base/log.h"
 #include "base/mutex.h"
 #include "base/scheduler.h"
 #include "base/timer.h"
@@ -68,10 +69,10 @@ public:
     int  cancelAll(int fd);
     int  getfdEvent(int fd);
     void addBlock() {
-        ++m_blockFiber;
+        m_blockFiber++;
     }
     void delBlock() {
-        --m_blockFiber;
+        m_blockFiber--;
     }
 
 public:

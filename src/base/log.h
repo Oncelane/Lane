@@ -37,6 +37,7 @@
                                                 (logger)))))             \
         .getMsg()
 
+
 #define LANE_LOG_DEBUG(logger) \
     LANE_LOG_LEVEL(logger, lane::LogLevel::Level::DEBUG)
 
@@ -56,252 +57,258 @@
 
 #define LANE_LOG_ROOT() lane::LoggerMgr::GetInstance()->getRoot()
 
+#define info() LANE_LOG_INFO(LANE_LOG_ROOT())
+#define debug() LANE_LOG_DEBUG(LANE_LOG_ROOT())
+#define warn() LANE_LOG_WRONG(LANE_LOG_ROOT())
+#define error() LANE_LOG_ERROR(LANE_LOG_ROOT())
+#define fatal() LANE_LOG_FATAL(LANE_LOG_ROOT())
+
 #define LANE_LOG_NAME(name) \
     lane::LoggerMgr::GetInstance()->getLoggerByName(name)
 namespace lane {
 
-    class Logger;
+class Logger;
 
-    class LogLevel {
-       public:
-        enum Level {
-            UNKNOW = 0,
-            DEBUG = 1,
-            INFO = 2,
-            WRONG = 3,
-            ERROR = 4,
-            FATAL = 5
-        };
-
-       public:
-        static const std::string ToString(LogLevel::Level level);
-        static const LogLevel::Level FromString(const std::string& level);
+class LogLevel {
+public:
+    enum Level {
+        UNKNOW = 0,
+        DEBUG = 1,
+        INFO = 2,
+        WRONG = 3,
+        ERROR = 4,
+        FATAL = 5
     };
 
-    class LogEvent {
-       public:
-        typedef std::shared_ptr<LogEvent> ptr;
+public:
+    static const std::string     ToString(LogLevel::Level level);
+    static const LogLevel::Level FromString(const std::string& level);
+};
 
-       public:
-        LogEvent(const char* file,
-                 uint32_t line,
-                 uint32_t elapse,
-                 uint32_t threadId,
-                 uint32_t fiberId,
-                 uint64_t timeStamp,
-                 const std::string& threadName,
-                 LogLevel::Level level,
-                 std::shared_ptr<Logger> logger);
-        const char* getFile() const {
-            return m_file;
-        }
-        uint32_t getLine() const {
-            return m_line;
-        }
-        uint32_t getElapse() const {
-            return m_elapse;
-        }
-        uint32_t getThreadId() const {
-            return m_threadId;
-        }
-        uint32_t getFiberId() const {
-            return m_fiberId;
-        }
-        uint64_t getTimeStamp() const {
-            return m_timeStamp;
-        }
-        const std::string& getThreadName() const {
-            return m_threadName;
-        }
-        std::stringstream& getMsg() {
-            return m_msg;
-        }
-        LogLevel::Level getLevel() const {
-            return m_level;
-        }
-        std::shared_ptr<Logger> getLogger() {
-            return m_logger;
-        }
+class LogEvent {
+public:
+    typedef std::shared_ptr<LogEvent> ptr;
 
-       private:
-        // 文件名
-        const char* m_file;
-        // 行号
-        uint32_t m_line;
-        // 程序启动到现在的秒数
-        uint32_t m_elapse;
-        // 线程号
-        uint32_t m_threadId;
-        // 协程号
-        uint32_t m_fiberId;
-        // 时间戳
-        uint64_t m_timeStamp;
-        // 线程名
-        std::string m_threadName;
-        // 日志消息
-        std::stringstream m_msg;
-        // 日志级别
-        LogLevel::Level m_level;
+public:
+    LogEvent(const char*             file,
+             uint32_t                line,
+             uint32_t                elapse,
+             uint32_t                threadId,
+             uint32_t                fiberId,
+             uint64_t                timeStamp,
+             const std::string&      threadName,
+             LogLevel::Level         level,
+             std::shared_ptr<Logger> logger);
+    const char* getFile() const {
+        return m_file;
+    }
+    uint32_t getLine() const {
+        return m_line;
+    }
+    uint32_t getElapse() const {
+        return m_elapse;
+    }
+    uint32_t getThreadId() const {
+        return m_threadId;
+    }
+    uint32_t getFiberId() const {
+        return m_fiberId;
+    }
+    uint64_t getTimeStamp() const {
+        return m_timeStamp;
+    }
+    const std::string& getThreadName() const {
+        return m_threadName;
+    }
+    std::stringstream& getMsg() {
+        return m_msg;
+    }
+    LogLevel::Level getLevel() const {
+        return m_level;
+    }
+    std::shared_ptr<Logger> getLogger() {
+        return m_logger;
+    }
 
-        std::shared_ptr<Logger> m_logger;
+private:
+    // 文件名
+    const char* m_file;
+    // 行号
+    uint32_t m_line;
+    // 程序启动到现在的秒数
+    uint32_t m_elapse;
+    // 线程号
+    uint32_t m_threadId;
+    // 协程号
+    uint32_t m_fiberId;
+    // 时间戳
+    uint64_t m_timeStamp;
+    // 线程名
+    std::string m_threadName;
+    // 日志消息
+    std::stringstream m_msg;
+    // 日志级别
+    LogLevel::Level m_level;
+
+    std::shared_ptr<Logger> m_logger;
+};
+
+class LogEventWrap {
+public:
+    typedef std::shared_ptr<LogEventWrap> ptr;
+
+public:
+    LogEventWrap(LogEvent::ptr event);
+    virtual ~LogEventWrap();
+    std::stringstream& getMsg();
+
+private:
+    LogEvent::ptr m_event;
+};
+
+class LogFormatter {
+public:
+    typedef std::shared_ptr<LogFormatter> ptr;
+
+public:
+    class FormatItem {
+    public:
+        typedef std::shared_ptr<FormatItem> ptr;
+
+    public:
+        virtual void format(LogEvent::ptr event, std::ostream& os) = 0;
     };
 
-    class LogEventWrap {
-       public:
-        typedef std::shared_ptr<LogEventWrap> ptr;
+public:
+    LogFormatter(
+        const std::string& pattern =
+            "%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%f%T[%p]%T[%c]%T%F:%l%T%m%n");
+    int format(LogEvent::ptr event, std::ostream& os);
 
-       public:
-        LogEventWrap(LogEvent::ptr event);
-        virtual ~LogEventWrap();
-        std::stringstream& getMsg();
+private:
+    void init();
 
-       private:
-        LogEvent::ptr m_event;
-    };
+private:
+    std::vector<FormatItem::ptr> m_items;
+    std::string                  m_pattern;
+};
 
-    class LogFormatter {
-       public:
-        typedef std::shared_ptr<LogFormatter> ptr;
+class LogAppender {
+public:
+    typedef std::shared_ptr<LogAppender> ptr;
+    typedef Mutex                        MutexType;
 
-       public:
-        class FormatItem {
-           public:
-            typedef std::shared_ptr<FormatItem> ptr;
+public:
+    virtual ~LogAppender(){};
+    virtual void log(LogEvent::ptr event) = 0;
 
-           public:
-            virtual void format(LogEvent::ptr event, std::ostream& os) = 0;
-        };
+public:
+    // 返回值使用期间，m_formatter可能被更改
+    LogFormatter::ptr getFormatter();
+    void              setFormatter(LogFormatter::ptr fmt);
+    void              setFormatter(const std::string& fmt);
+    LogLevel::Level   getLevel() const {
+        return m_level;
+    }
+    void setLevel(LogLevel::Level level) {
+        m_level = level;
+    }
 
-       public:
-        LogFormatter(
-            const std::string& pattern =
-                "%d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%f%T[%p]%T[%c]%T%F:%l%T%m%n");
-        int format(LogEvent::ptr event, std::ostream& os);
+    // for test
+    size_t getSize();
 
-       private:
-        void init();
+protected:
+    LogLevel::Level   m_level = LogLevel::Level::DEBUG;
+    LogFormatter::ptr m_formatter;
+    size_t m_size = 0;  // 记录输出到该LogAppender的日志的字节数。
+    MutexType m_mutex;
+};
 
-       private:
-        std::vector<FormatItem::ptr> m_items;
-        std::string m_pattern;
-    };
+class FileLogAppender : public LogAppender {
+public:
+    FileLogAppender(const char* prefix = "log");
+    virtual ~FileLogAppender() override;
+    virtual void log(LogEvent::ptr event) override;
 
-    class LogAppender {
-       public:
-        typedef std::shared_ptr<LogAppender> ptr;
-        typedef Mutex MutexType;
+private:
+    void reopen();
 
-       public:
-        virtual ~LogAppender(){};
-        virtual void log(LogEvent::ptr event) = 0;
+private:
+    std::ofstream m_of;
+    std::string   m_prefixName;
+    std::string   m_fileName;
+    uint32_t      m_logCount;
+    time_t        m_lastFlush;
+};
 
-       public:
-        // 返回值使用期间，m_formatter可能被更改
-        LogFormatter::ptr getFormatter();
-        void setFormatter(LogFormatter::ptr fmt);
-        void setFormatter(const std::string& fmt);
-        LogLevel::Level getLevel() const {
-            return m_level;
-        }
-        void setLevel(LogLevel::Level level) {
-            m_level = level;
-        }
+class StdoutLogAppender : public LogAppender {
+public:
+    virtual void log(LogEvent::ptr event) override;
+    virtual ~StdoutLogAppender() override{};
+};
 
-        // for test
-        size_t getSize();
+class Logger {
+public:
+    typedef std::shared_ptr<Logger> ptr;
+    typedef RWMutex                 MutexType;
 
-       protected:
-        LogLevel::Level m_level = LogLevel::Level::DEBUG;
-        LogFormatter::ptr m_formatter;
-        size_t m_size = 0;  // 记录输出到该LogAppender的日志的字节数。
-        MutexType m_mutex;
-    };
+public:
+    void log(LogEvent::ptr event);
 
-    class FileLogAppender : public LogAppender {
-       public:
-        FileLogAppender(const char* prefix = "log");
-        virtual ~FileLogAppender() override;
-        virtual void log(LogEvent::ptr event) override;
+public:
+    Logger(const std::string& name = "system");
+    LogLevel::Level getLevel() const {
+        return m_level;
+    }
+    void setLevel(lane::LogLevel::Level level) {
+        m_level = level;
+    }
+    void addAppender(LogAppender::ptr apd);
+    void clearAppender();
+    void delAppender(LogAppender::ptr apd);
 
-       private:
-        void reopen();
+    LogFormatter::ptr getFormatter();
+    void              setFormatter(LogFormatter::ptr fmt);
+    void              setFormatter(const std::string& fmt);
+    std::string       getName();
+    void              setName(const std::string& name);
 
-       private:
-        std::ofstream m_of;
-        std::string m_prefixName;
-        std::string m_fileName;
-        uint32_t m_logCount;
-        time_t m_lastFlush;
-    };
+    size_t getTotalSize(size_t& out);
 
-    class StdoutLogAppender : public LogAppender {
-       public:
-        virtual void log(LogEvent::ptr event) override;
-        virtual ~StdoutLogAppender() override{};
-    };
+private:
+    std::list<LogAppender::ptr> m_appenders;
+    LogLevel::Level             m_level = LogLevel::Level::DEBUG;
+    LogFormatter::ptr           m_formatter;
+    std::string                 m_name;
+    MutexType                   m_mutex;
+};
 
-    class Logger {
-       public:
-        typedef std::shared_ptr<Logger> ptr;
-        typedef RWMutex MutexType;
+class LoggerManager {
+public:
+    typedef std::shared_ptr<LoggerManager> ptr;
+    typedef RWMutex                        MutexType;
 
-       public:
-        void log(LogEvent::ptr event);
+public:
+    LoggerManager();
+    Logger::ptr getRoot();
+    Logger::ptr getLoggerByName(const std::string& name);
+    void        addLogger(const std::string& name, Logger::ptr logger);
+    void        delLogger(const std::string& name);
 
-       public:
-        Logger(const std::string& name = "system");
-        LogLevel::Level getLevel() const {
-            return m_level;
-        }
-        void setLevel(LogLevel::Level level) {
-            m_level = level;
-        }
-        void addAppender(LogAppender::ptr apd);
-        void clearAppender();
-        void delAppender(LogAppender::ptr apd);
+private:
+    Logger::ptr                        m_root;
+    std::map<std::string, Logger::ptr> m_loggers;
+    MutexType                          m_mutex;
+};
+struct LogIniter {
+    LogIniter() {
+        init();
+    }
 
-        LogFormatter::ptr getFormatter();
-        void setFormatter(LogFormatter::ptr fmt);
-        void setFormatter(const std::string& fmt);
-        std::string getName();
-        void setName(const std::string& name);
+    void init();
+};
 
-        size_t getTotalSize(size_t& out);
-
-       private:
-        std::list<LogAppender::ptr> m_appenders;
-        LogLevel::Level m_level = LogLevel::Level::DEBUG;
-        LogFormatter::ptr m_formatter;
-        std::string m_name;
-        MutexType m_mutex;
-    };
-
-    class LoggerManager {
-       public:
-        typedef std::shared_ptr<LoggerManager> ptr;
-        typedef RWMutex MutexType;
-
-       public:
-        LoggerManager();
-        Logger::ptr getRoot();
-        Logger::ptr getLoggerByName(const std::string& name);
-        void addLogger(const std::string& name, Logger::ptr logger);
-        void delLogger(const std::string& name);
-
-       private:
-        Logger::ptr m_root;
-        std::map<std::string, Logger::ptr> m_loggers;
-        MutexType m_mutex;
-    };
-    struct LogIniter {
-        LogIniter() {
-            init();
-        }
-
-        void init();
-    };
-
-    typedef Singleton<LoggerManager> LoggerMgr;
+typedef Singleton<LoggerManager> LoggerMgr;
 
 }  // namespace lane
 

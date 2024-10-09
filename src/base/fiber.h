@@ -15,13 +15,22 @@
 
 #include <atomic>
 #include <boost/context/detail/fcontext.hpp>
+#include <exception>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 
 #include "base/log.h"
 #include "base/macro.h"
 namespace lane {
 class Fiber : public std::enable_shared_from_this<Fiber> {
+private:
+    struct Defer {
+        std::function<void()> cb;
+        Defer*                next;
+    };
+
 public:
     typedef std::shared_ptr<Fiber>    ptr;
     typedef std::function<void(void)> CallBackType;
@@ -40,7 +49,10 @@ public:
     uint32_t getId() {
         return m_id;
     };
-    void reset(CallBackType cb);
+    void                          reset(CallBackType cb);
+    void                          _defer(std::function<void()> cb);
+    std::optional<std::exception> _recovery();
+    void                          _panic(std::exception e);
 
 private:
     void swapOut();
@@ -50,6 +62,7 @@ public:
     static void       YieldToHold();
     static void       YieldToReady();
     static Fiber::ptr GetThis();
+    static Fiber::ptr GetBefore();
     static void       SetThis(Fiber::ptr fiberPtr);
     static uint32_t   GetFiberId();
 
@@ -57,10 +70,14 @@ private:
     CallBackType                       m_cb;
     State                              m_state;
     uint32_t                           m_id;
-    boost::context::detail::fcontext_t m_ctx;
     uint32_t                           m_stackSize;
-    bool                               m_withThread;
+    boost::context::detail::fcontext_t m_ctx;
+    struct Defer*                      m_defer;
     char*                              m_stackPtr;
+    bool                               m_withThread;
+    std::list<std::exception>          m_exections;
+    bool                               m_panic;
+    bool                               m_defer_panic;
 };
 }  // namespace lane
 

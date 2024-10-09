@@ -2,36 +2,42 @@
 
 #include <iostream>
 
+#include "base/iomanager.h"
+#include "base/laneGo.h"
 #include "base/log.h"
 #include "base/mutex.h"
 #include "base/waitGroup.h"
 
-
 void TestWaitGroup() {
-    LANE_LOG_INFO(LANE_LOG_ROOT()) << "start runing";
+    info() << "start runing";
     auto wait = new lane::WaitGroup;
-    wait->add(6);
+
     for (int i = 0; i < 5; ++i) {
-        lane::IOManager::GetThis()->addTask([=]() {
+        wait->add(1);
+        co[=]() {
+            defer[&]() {
+                wait->done();
+            };
             sleep(1);
-            LANE_LOG_INFO(LANE_LOG_ROOT()) << i << " finish";
-            wait->done();
-        });
+            info() << " fast finish";
+        };
     }
-    lane::IOManager::GetThis()->addTask([=]() {
+    wait->add(1);
+    co[=]() {
+        defer[&]() {
+            wait->done();
+        };
         sleep(2);
-        LANE_LOG_INFO(LANE_LOG_ROOT()) << 100 << " finish";
-        wait->done();
-    });
+        info() << " slow finish";
+    };
+
     wait->wait();
-    LANE_LOG_INFO(LANE_LOG_ROOT()) << "end";
+    info() << "end";
 }
 
 void TestMain() {
     lane::IOManager iom(2, "waitgroup", false);
-    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::INFO);
     iom.addTask(TestWaitGroup);
-    // std::cin.get();
 }
 
 

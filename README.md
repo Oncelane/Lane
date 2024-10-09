@@ -48,6 +48,188 @@ lane 压测页面内容不变为 135 bytes，golang 压测页面内容减少，�
 | golang       | 3.97W |
 | lane O2 编译 | 5.96W |
 
+# 使用
+
+1. 创建使用两个线程的协程调度器`iom`
+2. 简单的使用`co`开启协程
+3. `defer`注册延迟执行函数,此函数会在协程 panic 或 return 后执行
+4. `panic`发起一个中断，中止协程运行
+5. 在 defer 代码块中使用`recovery`处理错误并恢复协程
+
+```cpp
+
+void TestMain() {
+    co[]() {
+
+        defer[]() {
+            info() << "defer1";
+        };
+        defer[]() {
+            info() << "defer2";
+        };
+        defer[]() {
+            info() << "defer3";
+            auto e = recovery();
+            if (e.has_value()) {
+                info() << "recovery this error:" << e.value().what();
+            }
+        };
+
+        info() << "throw panic";
+
+        panic("panic");
+
+        info() << "safe return";
+    };
+}
+
+
+int main() {
+    lane::IOManager iom(2, "hello", false);
+    iom.addTask(TestMain);
+}
+
+```
+
+执行结果
+
+```
+tests/.cc:26            throw panic
+tests/test_defer.cc:19  defer3
+tests/test_defer.cc:22  recovery this error:std::exception
+tests/test_defer.cc:30  safe return
+tests/test_defer.cc:16  defer2
+tests/test_defer.cc:13  defer1
+```
+
+> 缺陷是 e.what()丢失了原始值，可以通过模板解决，后续再弄
+
+# 协程同步方法
+
+### waitGroup
+
+`waitGroup`与 golang 的 `sync.WaitGroup` 语义一致
+方法：
+`add(int)`
+`done()`
+`wait()`
+
+示例代码
+
+```cpp
+
+void TestWaitGroup() {
+    info() << "start runing";
+    auto wait = new lane::WaitGroup;
+
+    for (int i = 0; i < 5; ++i) {
+        wait->add(1);
+        co[=]() {
+            defer[&]() {
+                wait->done();
+            };
+            sleep(1);
+            info() << " fast finish";
+        };
+    }
+    wait->add(1);
+    co[=]() {
+        defer[&]() {
+            wait->done();
+        };
+        sleep(2);
+        info() << " slow finish";
+    };
+
+    wait->wait();
+    info() << "end";
+}
+
+void TestMain() {
+    lane::IOManager iom(2, "waitgroup", false);
+    iom.addTask(TestWaitGroup);
+}
+
+```
+
+输出
+
+```
+2024-10-09 16:35:26     205332  waitgroup0      3       [INFO]  [root]  tests/test_waitGroup.cc:12      start runing
+2024-10-09 16:35:27     205333  waitgroup1      9       [INFO]  [root]  tests/test_waitGroup.cc:22       fast finish
+2024-10-09 16:35:27     205333  waitgroup1      8       [INFO]  [root]  tests/test_waitGroup.cc:22       fast finish
+2024-10-09 16:35:27     205333  waitgroup1      7       [INFO]  [root]  tests/test_waitGroup.cc:22       fast finish
+2024-10-09 16:35:27     205332  waitgroup0      6       [INFO]  [root]  tests/test_waitGroup.cc:22       fast finish
+2024-10-09 16:35:27     205333  waitgroup1      10      [INFO]  [root]  tests/test_waitGroup.cc:22       fast finish
+2024-10-09 16:35:28     205332  waitgroup0      11      [INFO]  [root]  tests/test_waitGroup.cc:31       slow finish
+2024-10-09 16:35:28     205332  waitgroup0      3       [INFO]  [root]  tests/test_waitGroup.cc:35      end
+```
+
+### Channel
+
+`channel`语义与 golang 的 `channel` 保持一致
+
+示例代码: 经典两个协程交替打印数字和字母
+
+```cpp
+void TestPrint() {
+    auto wg = new lane::WaitGroup;
+
+    // 创建两个 无缓冲channel，分别用于控制字母和数字的打印
+    auto letters = lane::Channel<bool>(0);
+    auto numbers = lane::Channel<bool>(0);
+
+    // 字母打印协程
+    wg->add(1);
+    co[&]() {
+        defer[&]() {
+            wg->done();
+        };
+        for (char ch = 'A'; ch <= 'C'; ch++) {
+            info() << ch;  // 打印字母
+            letters.input(true);  // 发送信号，通知数字打印协程可以打印
+            numbers.output();  // 等待数字打印协程的信号
+        }
+        letters.close();  // 关闭字母 channel
+    };
+
+
+    // 数字打印协程
+    wg->add(1);
+    co[&]() {
+        defer[&]() {
+            wg->done();
+        };
+        for (int num = 1; num <= 3; num++) {
+            letters.output();  // 等待字母打印协程的信号
+            info() << num;     // 打印数字
+            numbers.input(true);
+        }
+        numbers.close();  // 关闭数字 channel
+    };
+
+    wg->wait();  // 等待所有协程完成
+}
+
+
+int main() {
+    lane::IOManager iom(2, "channel", false);
+    iom.addTask(TestPrint);
+    return 0;
+}
+```
+
+输出
+
+```
+[INFO]  [root]  tests/test_channel.cc:84        A
+[INFO]  [root]  tests/test_channel.cc:100       1
+[INFO]  [root]  tests/test_channel.cc:84        B
+[INFO]  [root]  tests/test_channel.cc:100       2
+[INFO]  [root]  tests/test_channel.cc:84        C
+[INFO]  [root]  tests/test_channel.cc:100       3
+```
+
 # 项目依赖
 
 ```bash

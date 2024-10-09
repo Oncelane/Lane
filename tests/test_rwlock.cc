@@ -4,16 +4,16 @@
 #include "base/log.h"
 #include "base/mutex.h"
 #include "base/waitGroup.h"
-int  numReaders = 100;
-int  numWriters = 100;
-int  iterations = 10000;
+int  numReaders = 200;
+int  numWriters = 200;
+int  iterations = 1000;
 auto lock = new lane::Mutex;
+// auto lock = new lane::FiberMutex;
 auto wait = new lane::WaitGroup;
 auto data = 0;
 
 void TestMain() {
     // auto rwLock = new lane::FiberRWMutex;
-    // auto lock = new lane::FiberMutex;
 
 
     // 启动 numWrites 个写协程

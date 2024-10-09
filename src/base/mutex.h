@@ -15,8 +15,8 @@
 #include <stdint.h>
 
 #include <cassert>
-#include <list>
 #include <memory>
+#include <queue>
 
 #include "base/noncopyable.h"
 // #include "base/macro.h"
@@ -173,19 +173,19 @@ class FiberSemaphore : Noncopyable {
 public:
     FiberSemaphore(uint32_t count = 0);
     ~FiberSemaphore();
-    void   wait();
-    void   wait(Mutex& mu);
-    bool   waitForSeconds(time_t seconds);
-    void   post();
-    void   post(Mutex& mu);
-    int8_t getSem();
-    void   reset();
-    void   resize(int8_t size);
+    void    wait();
+    void    wait(Mutex& mu);
+    bool    waitForSeconds(time_t seconds);
+    void    post();
+    void    post(Mutex& mu);
+    int32_t getSem();
+    void    reset();
+    void    resize(int32_t size);
 
 private:
-    std::list<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
-    int8_t                                                   m_sem;
-    Mutex                                                    m_mutex;  // 因为需要对std::list进行增删查改，所以必须用互斥锁
+    std::queue<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
+    int32_t                                                   m_sem;
+    Mutex                                                     m_mutex;  // 因为需要对std::list进行增删查改，所以必须用互斥锁
 };
 
 class FiberMutex : Noncopyable {

@@ -85,7 +85,7 @@ IOManager::IOManager(uint32_t threadCount, const std::string &name, bool useCur)
 
     LANE_ASSERT(rt == 0);
     resize(32);
-
+    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::ERROR);
     start();
 }
 

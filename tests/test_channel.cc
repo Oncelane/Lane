@@ -1,57 +1,59 @@
 
 #include <unistd.h>
 
+#include <atomic>
 #include <iostream>
 
 #include "base/channel.h"
-#include "base/iomanager.h"
+#include "base/laneGo.h"
 #include "base/log.h"
+#include "base/mutex.h"
+#include "base/waitGroup.h"
 
-static int g_int = 0;
+static std::atomic_int g_int = 0;
 
-void producer(lane::Channel<int>* ch, int index) {
+void producer(lane::Channel<int>* ch) {
     while (true) {
-        if (g_int > 11) {
+        if (g_int > 4) {
             ch->close();
             break;
         }
-        LANE_LOG_INFO(LANE_LOG_ROOT()) << index << " in g_int=" << g_int;
         if (!ch->input(g_int++)) {
             break;
         }
     }
-    LANE_LOG_INFO(LANE_LOG_ROOT()) << "producer exit";
+    info() << "producer exit";
 }
 
-void comsumer(lane::Channel<int>* ch, int index) {
-    // static int count = 0;
+void comsumer(lane::Channel<int>* ch) {
     ch->range([=](int elem) {
-        LANE_LOG_INFO(LANE_LOG_ROOT()) << index << " out g_int=" << elem;
-        // if (count++ > 11) {
-        //     ch->close();
-        // }
+        // do something
+        info() << elem;
     });
-    LANE_LOG_INFO(LANE_LOG_ROOT()) << "consumer exit";
+    info() << "consumer exit";
 }
 
 void TestConsumer(lane::Channel<int>* ch) {
-    lane::IOManager iom(4, "test", false);
-    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::FATAL);
-
     for (int i = 0; i < 3; ++i) {
-        iom.addTask(std::bind(comsumer, ch, i));
-        iom.addTask(std::bind(producer, ch, i));
+        co std::bind(producer, ch);
     }
+    co std::bind(comsumer, ch);
+}
+
+void TestMain() {
+    auto*           ch = new lane::Channel<int>(0);
+    lane::IOManager iom(4, "test", false);
+    iom.addTask(std::bind(TestConsumer, ch));
 }
 
 void TestUnbufferChannelMain() {
     while (true) {
         g_int = 0;
-        auto* ch = new lane::Channel<int>(0);
-        TestConsumer(ch);
+        auto*           ch = new lane::Channel<int>(0);
+        lane::IOManager iom(4, "test", false);
+        iom.addTask(std::bind(TestConsumer, ch));
         std::cout << "==================end test===============" << std::endl;
         delete ch;
-        // std::cin.get();
     }
 }
 
@@ -65,9 +67,48 @@ void TestConflatedChannelMain() {
     }
 }
 
+void TestPrint() {
+    auto wg = new lane::WaitGroup;
+
+    // 创建两个 channel，分别用于控制字母和数字的打印
+    auto letters = lane::Channel<bool>(0);
+    auto numbers = lane::Channel<bool>(0);
+
+    // 字母打印协程
+    wg->add(1);
+    co[&]() {
+        defer[&]() {
+            wg->done();
+        };
+        for (char ch = 'A'; ch <= 'C'; ch++) {
+            info() << ch;  // 打印字母
+            letters.input(true);  // 发送信号，通知数字打印协程可以打印
+            numbers.output();  // 等待数字打印协程的信号
+        }
+        letters.close();  // 关闭字母 channel
+    };
+
+
+    // 数字打印协程
+    wg->add(1);
+    co[&]() {
+        defer[&]() {
+            wg->done();
+        };
+        for (int num = 1; num <= 3; num++) {
+            letters.output();  // 等待字母打印协程的信号
+            info() << num;     // 打印数字
+            numbers.input(true);
+        }
+        numbers.close();  // 关闭数字 channel
+    };
+
+    wg->wait();  // 等待所有协程完成
+}
+
 
 int main() {
-
-    TestUnbufferChannelMain();
+    lane::IOManager iom(2, "channel", false);
+    iom.addTask(TestPrint);
     return 0;
 }

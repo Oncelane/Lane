@@ -17,7 +17,7 @@
 #include "base/util.h"
 
 /// 断言宏封装
-#define LANE_ASSERT_ON false
+#define LANE_ASSERT_ON true
 
 #define LANE_ASSERT(x)                                      \
     if (LANE_ASSERT_ON) {                                   \
