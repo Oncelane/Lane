@@ -54,8 +54,61 @@ void Semaphore::post() {
     }
 }
 
+
+Mutex::Mutex() {
+    LANE_ASSERT(pthread_mutex_init(&m_mutex, nullptr) == 0);
+}
+Mutex::~Mutex() {
+    LANE_ASSERT(pthread_mutex_destroy(&m_mutex) == 0);
+}
+void Mutex::lock() {
+    LANE_ASSERT(pthread_mutex_lock(&m_mutex) == 0);
+}
+void Mutex::unlock() {
+    LANE_ASSERT(pthread_mutex_unlock(&m_mutex) == 0);
+}
+
+SpinMutex::SpinMutex() {
+    LANE_ASSERT(pthread_spin_init(&m_mutex, 1) == 0);
+}
+SpinMutex::~SpinMutex() {
+    LANE_ASSERT(pthread_spin_destroy(&m_mutex) == 0);
+}
+void SpinMutex::lock() {
+    LANE_ASSERT(pthread_spin_lock(&m_mutex) == 0);
+}
+void SpinMutex::unlock() {
+    LANE_ASSERT(pthread_spin_unlock(&m_mutex) == 0);
+}
+
+RWMutex::RWMutex() {
+    LANE_ASSERT(pthread_rwlock_init(&m_rwMutex, nullptr) == 0);
+}
+RWMutex::~RWMutex() {
+    LANE_ASSERT(pthread_rwlock_destroy(&m_rwMutex) == 0);
+}
+void RWMutex::rdLock() {
+    LANE_ASSERT(pthread_rwlock_rdlock(&m_rwMutex) == 0);
+}
+
+void RWMutex::wrLock() {
+    LANE_ASSERT(pthread_rwlock_wrlock(&m_rwMutex) == 0);
+}
+
+void RWMutex::unlock() {
+    LANE_ASSERT(pthread_rwlock_unlock(&m_rwMutex) == 0);
+}
+
 FiberMutex::~FiberMutex() {
     LANE_ASSERT(m_fs.getSem() == 1);
+}
+
+void FiberMutex::lock() {
+    m_fs.wait();
+}
+void FiberMutex::unlock() {
+    LANE_ASSERT(m_fs.getSem() <= 0);
+    m_fs.post();
 }
 
 FiberSemaphore::FiberSemaphore(uint32_t count) : m_sem(count) {}

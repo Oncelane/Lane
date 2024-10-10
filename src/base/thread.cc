@@ -2,13 +2,21 @@
 
 #include <string.h>
 
+#include <cstdlib>
+
 #include "base/log.h"
 #include "base/macro.h"
 #include "scheduler.h"
 #include "workStealQueue.h"
 
 namespace lane {
-static thread_local lane::WorkStealQueue<FiberAndThread>::ptr t_queue = nullptr;
+static thread_local lane::WorkStealQueue<FiberAndThread>::ptr t_queue(nullptr);
+
+static ConfigVar<size_t>::ptr s_subQueueMaxSize =
+    ConfigVarMgr::GetInstance()->lookUp("schedule.subQueueQueueMax",
+                                        size_t(32),
+                                        "max size of RoutineQueue");
+
 static Logger::ptr g_logger = LANE_LOG_NAME("system");
 // 线程对象生命周期可能和线程本身生命周期不同，所以不推荐每个线程用线程全局变量保存线程对象的地址，智能指针不能泛滥使用!!!
 //  static thread_local Thread* t_thread = nullptr;
@@ -85,12 +93,13 @@ void Thread::setDefaultName() {
     }
 }
 void Thread::InitLocalQueue() {
-
-    t_queue.reset(new lane::WorkStealQueue<FiberAndThread>());
+    if (s_subQueueMaxSize->getValue() <= 0) {
+        LANE_LOG_FATAL(g_logger) << "wrong max size";
+        exit(1);
+    }
+    t_queue.reset(new lane::WorkStealQueue<FiberAndThread>(
+        s_subQueueMaxSize->getValue()));
     if (Scheduler* sch = lane::Scheduler::GetThis()) {
-        // LANE_LOG_DEBUG(g_logger)
-        //     << "t_queue get ready pid: " << Thread::GetTid()
-        //     << " addrs :" << t_queue;
         sch->m_subQueuesmap[Thread::GetTid()] = t_queue;
     }
 }

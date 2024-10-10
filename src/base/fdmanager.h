@@ -76,7 +76,7 @@ class FdManager {
 public:
     typedef std::vector<FdCtx::ptr>    FdCtxVector;
     typedef std::shared_ptr<FdManager> ptr;
-    typedef Mutex                      MutexType;
+    using MutexType = SpinMutex;
 
 public:
     FdManager();

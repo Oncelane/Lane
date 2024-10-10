@@ -23,7 +23,7 @@ public:
     }
 
 private:
-    using MutexType = FiberMutex;
+    using MutexType = Mutex;
     uint32_t                              size;
     std::queue<std::function<void(void)>> m_queue;
     FiberSemaphore                        m_sem;

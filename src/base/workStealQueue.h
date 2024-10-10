@@ -1,30 +1,45 @@
 #pragma once
 
+#include <cstdint>
 #include <deque>
 #include <memory>
-#include <mutex>
+#include <utility>
 #include <vector>
 
+#include "base/mutex.h"
 namespace lane {
 
 template <typename T>
 class WorkStealQueue {
 public:
     using ptr = std::shared_ptr<WorkStealQueue<T>>;
-    WorkStealQueue() {}
 
-    void push_front(T item) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+    WorkStealQueue() = delete;
+    WorkStealQueue(uint32_t cap) : m_cap(cap) {}
+
+    bool push_front(T item) {
+        MutexType::Lock lock(m_mutex);
+        if (m_cap == m_queue.size()) {
+            return false;
+        }
         m_queue.push_front(item);
+        return true;
     }
 
-    void push_back(T item) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_queue.push_back(item);
+    bool push_back(T item) {
+        // MutexType::Lock lock(m_mutex);
+        m_mutex.lock();
+        if (m_cap == m_queue.size()) {
+            m_mutex.unlock();
+            return false;
+        }
+        m_queue.push_back(std::move(item));
+        m_mutex.unlock();
+        return true;
     }
 
     bool push_back_if_empty(T item) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        MutexType::Lock lock(m_mutex);
         if (m_queue.size() == 0) {
             m_queue.push_back(item);
             return true;
@@ -33,33 +48,31 @@ public:
     }
 
     T pop_front() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        auto out = m_queue.front();
+        MutexType::Lock lock(m_mutex);
+        auto            out = m_queue.front();
         m_queue.pop_front();
         return out;
     }
 
     T pop_back() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        auto out = m_queue.back();
+        MutexType::Lock lock(m_mutex);
+        auto            out = m_queue.back();
         m_queue.pop_back();
         return out;
     }
 
     T front() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        MutexType::Lock lock(m_mutex);
         return m_queue.front();
     }
 
     T back() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        MutexType::Lock lock(m_mutex);
         return m_queue.back();
     }
 
     bool empty() const {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // MutexType::Lock lock(m_mutex);
         return m_queue.empty();
     }
 
@@ -68,43 +81,61 @@ public:
     }
 
     void clear() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto                        tmp = std::deque<T>();
+        MutexType::Lock lock(m_mutex);
+        auto            tmp = std::deque<T>();
         m_queue.swap(tmp);
     }
 
     bool try_pop(T& out) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // MutexType::Lock lock(m_mutex);
+        m_mutex.lock();
         if (m_queue.empty()) {
+            m_mutex.unlock();
             return false;
         }
         out = std::move(m_queue.front());
         m_queue.pop_front();
+        m_mutex.unlock();
         return true;
     }
 
     std::shared_ptr<T> try_pop() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // MutexType::Lock lock(m_mutex);
+        m_mutex.lock();
         if (m_queue.empty()) {
+            m_mutex.unlock();
             return nullptr;
         }
         std::shared_ptr<T> out(std::make_shared<T>(std::move(m_queue.front())));
         m_queue.pop_front();
+        m_mutex.unlock();
         return out;
     }
 
+    bool try_pop(std::vector<T>& outVec) {
+        MutexType::Lock lock(m_mutex);
+        for (int i = 0; i < m_queue.size(); ++i) {
+            outVec.push_back(std::move(m_queue.back()));
+            m_queue.pop_back();
+        }
+        return outVec.size();
+    }
+
     bool try_steal(T& out) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // MutexType::Lock lock(m_mutex);
+        m_mutex.lock();
         if (m_queue.empty()) {
+            m_mutex.unlock();
             return false;
         }
         out = std::move(m_queue.back());
         m_queue.pop_back();
+        m_mutex.unlock();
         return true;
     }
 
     bool try_steal(std::vector<T>& outVec) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        MutexType::Lock lock(m_mutex);
         if (m_queue.empty()) {
             return false;
         }
@@ -116,8 +147,10 @@ public:
     }
 
 private:
-    std::deque<T>      m_queue;
-    mutable std::mutex m_mutex;
+    using MutexType = lane::SpinMutex;
+    std::deque<T>     m_queue;
+    mutable MutexType m_mutex;
+    uint32_t          m_cap;
 };
 
 }  // namespace lane
