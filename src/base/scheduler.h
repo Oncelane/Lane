@@ -147,7 +147,7 @@ protected:
         FiberAndThread fiC(fOrCb, force ? tId : -1);
         if (fiC.m_cb || fiC.m_fiber) {
             // printf("%d",m_subQueuesmap[tId]);
-            m_mainQueue.push(fiC);
+            m_mainQueue.push_back(fiC);
         }
         return needTickle;
     }
@@ -168,7 +168,7 @@ protected:
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in sub" <<
                 // fiC.m_fiber->GetFiberId();
             } else {
-                m_mainQueue.push(fiC);
+                m_mainQueue.push_back(fiC);
                 // maincount++;
                 // if(maincount%50000 == 0)
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in main"<<
@@ -190,7 +190,7 @@ private:
     std::atomic<uint32_t> m_activeThreadCount = {0};
     std::atomic<uint32_t> m_idleThreadCount = {0};
 
-    lane::ThreadSafeQueue<FiberAndThread> m_mainQueue;
+    lane::WorkStealQueue<FiberAndThread> m_mainQueue;
     // std::vector<lane::WorkStealQueue<FiberAndThread>> m_subQueues;
     // std::vector<std::shared_ptr<lane::WorkStealQueue<FiberAndThread>>>
     //     m_subQueuesptr;

@@ -93,6 +93,18 @@ public:
         return out;
     }
 
+    bool try_pop(std::vector<T>& outVec) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_queue.empty()) {
+            return false;
+        }
+        for (long unsigned int i = 0; i < m_queue.size(); ++i) {
+            outVec.push_back(m_queue.back());
+            m_queue.pop_back();
+        }
+        return outVec.size();
+    }
+
     bool try_steal(T& out) {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_queue.empty()) {

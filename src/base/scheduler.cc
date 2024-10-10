@@ -103,39 +103,18 @@ std::vector<FiberAndThread> Scheduler::takeTask(pid_t tId) {
         // 分配任务/偷任务时，就需要保证任务pid就是本线程的pid，这里就不做保证了
         // WorkStealQueue<FiberAndThread>* subqueue = m_subQueuesmap[tId];
         bool getFlag = false;
-        while (!Thread::GetLocalQueue()->empty()) {
-            auto it = Thread::GetLocalQueue()->try_pop();
-            if (!it) {  // 为空
-                continue;
-            }
-            if (it->m_cb || it->m_fiber) {
-                ret.push_back((*it));
-                needTickle = true;
-                getFlag = true;
-                // m_activeThreadCount++;
-                break;
-            }
-        }
+        getFlag = Thread::GetLocalQueue()->try_pop(ret);
         // 从本地队列获取失败
         // 尝试从全局队列获取
         if (getFlag == false) {
-            auto it = m_mainQueue.try_pop();
-            if (!it) {  // 为空
-
-            } else {
-                if (it->m_cb || it->m_fiber) {
-                    ret.push_back((*it));
-                    // LANE_LOG_DEBUG(g_logger) << "P get task from global
-                    // queue which now left:"<< m_mainQueue.size();
-                    needTickle = true;
-                    getFlag = true;
-                    // m_activeThreadCount++;
-                }
-            }
+            getFlag = m_mainQueue.try_pop(ret);
         }
         // 从全局队列获取失败，开偷
         if (getFlag == false) {
             for (auto& subQueue : m_subQueuesmap) {
+                if (subQueue.second == Thread::GetLocalQueue()) {
+                    continue;
+                }
                 if (subQueue.second->try_steal(ret)) {
                     LANE_LOG_DEBUG(g_logger)
                         << "P success steal from " << subQueue.first
