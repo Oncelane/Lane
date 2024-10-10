@@ -26,14 +26,14 @@ public:
         return true;
     }
 
-    bool push_back(T&& item) {
+    bool push_back(T item) {
         // MutexType::Lock lock(m_mutex);
         m_mutex.lock();
         if (m_cap == m_queue.size()) {
             m_mutex.unlock();
             return false;
         }
-        m_queue.push_back(std::forward<T>(item));
+        m_queue.push_back(std::move(item));
         m_mutex.unlock();
         return true;
     }

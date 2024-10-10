@@ -28,11 +28,6 @@
 #include "base/util.h"
 #include "base/workStealQueue.h"
 namespace lane {
-
-static ConfigVar<size_t>::ptr s_subQueueMaxSize =
-    ConfigVarMgr::GetInstance()->lookUp("schedule.subQueueQueueMax",
-                                        size_t(128),
-                                        "max size of RoutineQueue");
 // 类线程池
 
 class Scheduler {
@@ -161,14 +156,14 @@ protected:
         if (fiC.m_cb || fiC.m_fiber) {
             // printf("%d",m_subQueuesmap[tId]);
             if (Thread::GetLocalQueue()->push_back(
-                    std::move(fiC))) {  // 优先加入到本地队列呢
+                    fiC)) {  // 优先加入到本地队列呢
 
                 //  localcount++;
                 //  if(localcount %50000 == 0)
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in sub" <<
                 // fiC.m_fiber->GetFiberId();
             } else {
-                m_mainQueue.push_back(std::move(fiC));
+                m_mainQueue.push_back(fiC);
                 // maincount++;
                 // if(maincount%50000 == 0)
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in main"<<

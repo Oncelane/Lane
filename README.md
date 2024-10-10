@@ -18,12 +18,12 @@
 
 | 项目   | 耗时   | 切换性能 |
 | ------ | ------ | -------- |
-| lane   | 817 ms | 81 ns    |
-| golang | 690 ms | 69 ns    |
+| lane   | 876 ms | 87 ns    |
+| golang | 662 ms | 66 ns    |
 
 ```
-switch[1000]: go: 10000000 switches in 690 ms, 14492753 switches per second
-switch[1000]: lane: 10000000 switches in 817 ms, 12229886 switches per second
+switch[1000]: lane: 10000000 switches in 876.759 ms, 11405639 switches per second
+switch[1000]: go: 10000000 switches in 662 ms, 15105740 switches per second
 ```
 
 # 服务器压测
