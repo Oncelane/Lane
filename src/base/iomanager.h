@@ -35,7 +35,7 @@ public:
     typedef std::shared_ptr<IOManager> ptr;
     enum Event { NONE = 0, READ = EPOLLIN, WRITE = EPOLLOUT };
     struct FdContext {
-        typedef Mutex MutexType;
+        using MutexType = SpinMutex;
         struct EventContext {
             void                      reset();
             Fiber::ptr                m_fiber = nullptr;

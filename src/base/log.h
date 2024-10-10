@@ -196,7 +196,7 @@ private:
 class LogAppender {
 public:
     typedef std::shared_ptr<LogAppender> ptr;
-    typedef Mutex                        MutexType;
+    using MutexType = SpinMutex;
 
 public:
     virtual ~LogAppender(){};

@@ -1,6 +1,9 @@
 #include "base/scheduler.h"
 
+#include <sys/types.h>
+
 #include <cstddef>
+#include <cstdint>
 
 #include "base/hook.h"
 #include "base/log.h"
@@ -16,7 +19,7 @@ static thread_local Scheduler* t_scheduler = nullptr;
 // thread_local lane::WorkStealQueue<FiberAndThread>* t_queue = nullptr;
 
 Scheduler::Scheduler(uint32_t threadCount, const std::string& name, bool useCur)
-    : m_name(name), m_stop(true) {
+    : m_name(name), m_mainQueue(UINT32_MAX), m_stop(true) {
     Fiber::GetThis();
 
     if (useCur) {
@@ -30,7 +33,6 @@ Scheduler::Scheduler(uint32_t threadCount, const std::string& name, bool useCur)
     } else {
         m_rootThreadId = -1;
     }
-
     m_threadCount = threadCount;
 }
 Scheduler::~Scheduler() {
@@ -96,66 +98,44 @@ void Scheduler::stop() {
 
 std::vector<FiberAndThread> Scheduler::takeTask(pid_t tId) {
     std::vector<FiberAndThread> ret;
-    bool                        needTickle = false;
+    // bool                        needTickle = false;
 
-    {
-        // MutexType::Lock lock(m_mutex);
-        // 分配任务/偷任务时，就需要保证任务pid就是本线程的pid，这里就不做保证了
-        // WorkStealQueue<FiberAndThread>* subqueue = m_subQueuesmap[tId];
-        bool getFlag = false;
-        while (!Thread::GetLocalQueue()->empty()) {
-            auto it = Thread::GetLocalQueue()->try_pop();
-            if (!it) {  // 为空
+
+    // MutexType::Lock lock(m_mutex);
+    // 分配任务/偷任务时，就需要保证任务pid就是本线程的pid，这里就不做保证了
+    // WorkStealQueue<FiberAndThread>* subqueue = m_subQueuesmap[tId];
+    bool getFlag;
+    getFlag = Thread::GetLocalQueue()->try_pop(ret);
+
+    // 从本地队列获取失败
+    // 尝试从全局队列获取
+    if (getFlag == false) {
+        getFlag = m_mainQueue.try_pop(ret);
+    }
+    // 从全局队列获取失败，开偷
+    if (getFlag == false) {
+        for (auto& subQueue : m_subQueuesmap) {
+            if (subQueue.second == Thread::GetLocalQueue()) {
                 continue;
             }
-            if (it->m_cb || it->m_fiber) {
-                ret.push_back((*it));
-                needTickle = true;
+            if (subQueue.second->try_steal(ret)) {
+                LANE_LOG_DEBUG(g_logger)
+                    << "P success steal from " << subQueue.first
+                    << " num of tast:" << ret.size();
                 getFlag = true;
-                // m_activeThreadCount++;
                 break;
-            }
-        }
-        // 从本地队列获取失败
-        // 尝试从全局队列获取
-        if (getFlag == false) {
-            auto it = m_mainQueue.try_pop();
-            if (!it) {  // 为空
-
             } else {
-                if (it->m_cb || it->m_fiber) {
-                    ret.push_back((*it));
-                    // LANE_LOG_DEBUG(g_logger) << "P get task from global
-                    // queue which now left:"<< m_mainQueue.size();
-                    needTickle = true;
-                    getFlag = true;
-                    // m_activeThreadCount++;
-                }
-            }
-        }
-        // 从全局队列获取失败，开偷
-        if (getFlag == false) {
-            for (auto& subQueue : m_subQueuesmap) {
-                if (subQueue.second->try_steal(ret)) {
-                    LANE_LOG_DEBUG(g_logger)
-                        << "P success steal from " << subQueue.first
-                        << " num of tast:" << ret.size();
-                    getFlag = true;
-                    needTickle = true;
-                    break;
-                    // m_activeThreadCount++;
-                } else {
-                    continue;
-                }
+                continue;
             }
         }
     }
-    if (needTickle) {
-        tickle();
-    }
+
+    // if (needTickle) {
+    //     tickle();
+    // }
 
     return ret;
-}
+}  // namespace lane
 
 void Scheduler::run() {
     // Fiber init

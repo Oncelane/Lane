@@ -31,14 +31,14 @@ namespace lane {
 
 static ConfigVar<size_t>::ptr s_subQueueMaxSize =
     ConfigVarMgr::GetInstance()->lookUp("schedule.subQueueQueueMax",
-                                        size_t(32),
+                                        size_t(128),
                                         "max size of RoutineQueue");
 // 类线程池
 
 class Scheduler {
 public:
     typedef std::shared_ptr<Scheduler> ptr;
-    typedef Mutex                      MutexType;
+    using MutexType = SpinMutex;
 
 public:
     Scheduler(uint32_t           threadCount,
@@ -143,11 +143,11 @@ public:
 protected:
     template <typename FiberOrCb>
     bool scheduleNoLockFirst(FiberOrCb fOrCb, pid_t tId, bool force) {
-        bool           needTickle = m_mainQueue.empty();
+        bool           needTickle = !m_mainQueue.empty();
         FiberAndThread fiC(fOrCb, force ? tId : -1);
         if (fiC.m_cb || fiC.m_fiber) {
             // printf("%d",m_subQueuesmap[tId]);
-            m_mainQueue.push(fiC);
+            m_mainQueue.push_back(std::move(fiC));
         }
         return needTickle;
     }
@@ -156,19 +156,19 @@ protected:
     bool scheduleNoLock(FiberOrCb fOrCb, pid_t tId, bool force) {
         // static int localcount = 0;
         // static int maincount = 0;
-        bool           needTickle = m_mainQueue.empty();
+        bool           needTickle = !m_mainQueue.empty();
         FiberAndThread fiC(fOrCb, force ? tId : -1);
         if (fiC.m_cb || fiC.m_fiber) {
             // printf("%d",m_subQueuesmap[tId]);
-            if (Thread::GetLocalQueue()->size() <=
-                s_subQueueMaxSize->getValue()) {  // 优先加入到本地队列呢
-                Thread::GetLocalQueue()->push_back(fiC);
+            if (Thread::GetLocalQueue()->push_back(
+                    std::move(fiC))) {  // 优先加入到本地队列呢
+
                 //  localcount++;
                 //  if(localcount %50000 == 0)
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in sub" <<
                 // fiC.m_fiber->GetFiberId();
             } else {
-                m_mainQueue.push(fiC);
+                m_mainQueue.push_back(std::move(fiC));
                 // maincount++;
                 // if(maincount%50000 == 0)
                 // LANE_LOG_DEBUG(LANE_LOG_ROOT()) << "in main"<<
@@ -190,7 +190,7 @@ private:
     std::atomic<uint32_t> m_activeThreadCount = {0};
     std::atomic<uint32_t> m_idleThreadCount = {0};
 
-    lane::ThreadSafeQueue<FiberAndThread> m_mainQueue;
+    lane::WorkStealQueue<FiberAndThread> m_mainQueue;
     // std::vector<lane::WorkStealQueue<FiberAndThread>> m_subQueues;
     // std::vector<std::shared_ptr<lane::WorkStealQueue<FiberAndThread>>>
     //     m_subQueuesptr;

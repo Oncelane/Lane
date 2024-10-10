@@ -12,7 +12,21 @@
 - waitGroup
 - 协程池
 
-# 压测数据
+# 协程切换压测
+
+一千万次协程切换耗时
+
+| 项目   | 耗时   | 切换性能 |
+| ------ | ------ | -------- |
+| lane   | 817 ms | 81 ns    |
+| golang | 690 ms | 69 ns    |
+
+```
+switch[1000]: go: 10000000 switches in 690 ms, 14492753 switches per second
+switch[1000]: lane: 10000000 switches in 817 ms, 12229886 switches per second
+```
+
+# 服务器压测
 
 | 项目   | QPS   |
 | ------ | ----- |

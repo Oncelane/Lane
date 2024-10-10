@@ -9,12 +9,10 @@
 
 #ifndef __LANE_MUTEX_H__
 #define __LANE_MUTEX_H__
-#include <assert.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdint.h>
 
-#include <cassert>
 #include <memory>
 #include <queue>
 
@@ -124,21 +122,27 @@ public:
     typedef ScopedLockImpl<Mutex> Lock;
 
 public:
-    Mutex() {
-        assert(pthread_mutex_init(&m_mutex, nullptr) == 0);
-    }
-    ~Mutex() {
-        assert(pthread_mutex_destroy(&m_mutex) == 0);
-    }
-    void lock() {
-        assert(pthread_mutex_lock(&m_mutex) == 0);
-    }
-    void unlock() {
-        assert(pthread_mutex_unlock(&m_mutex) == 0);
-    }
+    Mutex();
+    ~Mutex();
+    void lock();
+    void unlock();
 
 private:
     pthread_mutex_t m_mutex;
+};
+
+class SpinMutex : Noncopyable {
+public:
+    typedef ScopedLockImpl<SpinMutex> Lock;
+
+public:
+    SpinMutex();
+    ~SpinMutex();
+    void lock();
+    void unlock();
+
+private:
+    pthread_spinlock_t m_mutex;
 };
 
 class RWMutex : Noncopyable {
@@ -147,23 +151,13 @@ public:
     typedef WriteScopedLockImpl<RWMutex> WriteLock;
 
 public:
-    RWMutex() {
-        assert(pthread_rwlock_init(&m_rwMutex, nullptr) == 0);
-    }
-    ~RWMutex() {
-        assert(pthread_rwlock_destroy(&m_rwMutex) == 0);
-    }
-    void rdLock() {
-        assert(pthread_rwlock_rdlock(&m_rwMutex) == 0);
-    }
+    RWMutex();
+    ~RWMutex();
+    void rdLock();
 
-    void wrLock() {
-        assert(pthread_rwlock_wrlock(&m_rwMutex) == 0);
-    }
+    void wrLock();
 
-    void unlock() {
-        assert(pthread_rwlock_unlock(&m_rwMutex) == 0);
-    }
+    void unlock();
 
 private:
     pthread_rwlock_t m_rwMutex;
@@ -194,31 +188,12 @@ public:
 
     FiberMutex() : m_fs(1) {}
     ~FiberMutex();
-    void lock() {
-        m_fs.wait();
-    }
-    void unlock() {
-        assert(m_fs.getSem() <= 0);
-        m_fs.post();
-    }
+    void lock();
+    void unlock();
 
 private:
     FiberSemaphore m_fs;
 };
-
-
-// class FiberCondition : Noncopyable {
-// public:
-//     FiberCondition();
-//     ~FiberCondition();
-//     void wait(ScopedLockImpl<FiberMutex>& Lock, std::function<bool(void)>
-//     cb); bool notify(); bool notify_all();
-
-// private:
-//     std::queue<std::pair<IOManager*, std::shared_ptr<Fiber>>> m_waitQueue;
-//     int8_t                                                    m_sem;
-//     std::function<bool(void)>                                 m_cb;
-// };
 
 }  // namespace lane
 
