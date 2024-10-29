@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     lane::IOManager iom(12, "main", false);
     iom.start();
     iom.addTask(run);
-    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::FATAL);
+    LANE_LOG_NAME("system")->setLevel(lane::LogLevel::ERROR);
     iom.stop();
     printf("server end\n");
     return 0;

@@ -3,6 +3,8 @@
 
 #include <dlfcn.h>
 
+#include <cstdint>
+
 #include "base/config.h"
 #include "base/fdmanager.h"
 #include "base/fiber.h"
@@ -120,7 +122,7 @@ retry:
         lane::Timer::ptr          timer;
         std::weak_ptr<timer_info> winfo(tinfo);
 
-        if (to != (uint64_t)-1) {
+        if (to != (uint64_t)0 && to != (uint64_t)-1) {
             timer = iom->addTimer(to, [winfo, fd, iom, event]() {
                 auto t = winfo.lock();
                 if (!t || t->cancelled) {
@@ -144,12 +146,12 @@ retry:
         } else {
             lane::Fiber::YieldToHold();
             // 被TrigerEvent之后，这里的event也应该被相应的去除掉
-            auto m_event = iom->getfdEvent(fd);
-            event = m_event;
-            if (event == lane::IOManager::Event::NONE) {
-                // 没有事件了就应该提前退出
-                return -1;
-            }
+            // auto m_event = iom->getfdEvent(fd);
+            // event = m_event;
+            // if (event == lane::IOManager::Event::NONE) {
+            //     // 没有事件了就应该提前退出
+            //     return -1;
+            // }
             if (timer) {
                 timer->cancel();
             }
@@ -177,7 +179,7 @@ unsigned int sleep(unsigned int seconds) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(seconds * 1000,
-                  std::bind((void(lane::Scheduler::*)(
+                  std::bind((void (lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,
@@ -195,7 +197,7 @@ int usleep(useconds_t usec) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(usec / 1000,
-                  std::bind((void(lane::Scheduler::*)(
+                  std::bind((void (lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,
@@ -215,7 +217,7 @@ int nanosleep(const struct timespec* req, struct timespec* rem) {
     lane::Fiber::ptr fiber = lane::Fiber::GetThis();
     lane::IOManager* iom = lane::IOManager::GetThis();
     iom->addTimer(timeout_ms,
-                  std::bind((void(lane::Scheduler::*)(
+                  std::bind((void (lane::Scheduler::*)(
                                 lane::Fiber::ptr, int thread, bool force)) &
                                 lane::IOManager::schedule,
                             iom,

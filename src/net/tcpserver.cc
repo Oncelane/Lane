@@ -92,7 +92,7 @@ void TcpServer::startAccept(Socket::ptr sock) {
             LANE_LOG_ERROR(g_logger)
                 << "accept errno=" << errno << " errstr=" << strerror(errno);
         }
-        LANE_LOG_DEBUG(g_logger) << "m_stop now is " << m_isStop;
+        // LANE_LOG_DEBUG(g_logger) << "m_stop now is " << m_isStop;
     }
 }
 

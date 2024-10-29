@@ -42,8 +42,9 @@ file(GLOB_RECURSE SRC_LIST
 endfunction()
 
 message(STATUS "-----SRC_LIST:${SRC_LIST}-----LIB_LIST:${LIB_LIST}---YAML-CPP:${yaml}")
-add_compile_options(-std=c++17 -Wall -O3 -flto=auto)
+# add_compile_options(-std=c++17 -Wall -O3 -flto=auto)
 # add_compile_options(-std=c++17 -Wall -fsanitize=address -g -O0)
+add_compile_options(-std=c++17 -Wall -g -O0)
 
 set (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 add_library (laneLib STATIC ${SRC_LIST})

@@ -16,14 +16,16 @@
 
 一千万次协程切换耗时
 
-| 项目   | 耗时   | 切换性能 |
-| ------ | ------ | -------- |
-| lane   | 876 ms | 87 ns    |
-| golang | 662 ms | 66 ns    |
+| 项目        | 耗时      | 切换性能 |
+| ----------- | --------- | -------- |
+| lane        | 876 ms    | 87 ns    |
+| golang      | 662 ms    | 66 ns    |
+| lunar/sylar | 5904.5 ms | 590 ns   |
 
 ```
 switch[1000]: lane: 10000000 switches in 876.759 ms, 11405639 switches per second
 switch[1000]: go: 10000000 switches in 662 ms, 15105740 switches per second
+switch[1000]: lunar: 10000000 switches in 5904.5 ms, 1693624 switches per second
 ```
 
 # 服务器压测
@@ -273,12 +275,6 @@ sudo make install
 ```bash
 git clone https://github.com/Oncelane/Lane.git
 cd Lane
-```
-
-切换分支
-
-```bash
-git checkout little-work
 ```
 
 2. 编译

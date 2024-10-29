@@ -1,6 +1,7 @@
 
 #include <sys/types.h>
 
+#include <cassert>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -38,7 +39,7 @@ public:
 
             // unbuffer channel
         } else if (m_cap < 0) {
-            LANE_ASSERT2(false, "init Channel cap < 0");
+            assert(false);
             // exception
         } else {
             m_type = buffered;
@@ -123,9 +124,9 @@ public:
             case unbuffered: {
 
                 if (m_close) {
-
                     return false;
                 }
+
                 if (m_queue.empty()) {
                     m_queue.push(in);
                     ++m_size;

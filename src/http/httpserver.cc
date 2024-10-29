@@ -45,7 +45,12 @@ void HttpServer::handleClient(Socket::ptr client) {
         rsp->setHeader("Server", getName());
         m_dispatch->handle(req, rsp, session);
         session->sendResponse(rsp);
-
+        if (req->isClose()) {
+            debug() << "[socket] http dead by not keeplive";
+        }
+        if (!m_isKeepalive) {
+            debug() << "[socket] http dead by not keeplive";
+        }
         if (!m_isKeepalive || req->isClose()) {
             break;
         }

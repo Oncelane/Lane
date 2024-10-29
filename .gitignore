@@ -20,3 +20,4 @@ lib/
 *lib/
 
 pkg/
+massif.out*
